@@ -1156,7 +1156,7 @@ Espaces déjà présents, laissés tels quels : {4}</value>
     <value>Envoyer les raccourcis Lucarne à ce bureau distant</value>
   </data>
   <data name="Editor_PassShortcutsHint" xml:space="preserve">
-    <value>Pour une machine où Lucarne tourne aussi : Ctrl+K, Ctrl+W, Ctrl+Tab et les autres vont au Lucarne distant plutôt qu'à celui-ci. Ctrl+Alt+Pause reste intercepté ici.</value>
+    <value>Pour une machine où Lucarne tourne aussi : Ctrl+K, Ctrl+W, Ctrl+Tab et les autres vont à l'instance distante de Lucarne plutôt qu'à celle-ci. Ctrl+Alt+Pause reste intercepté ici.</value>
   </data>
   <data name="Editor_DisplayDynamicHint" xml:space="preserve">
     <value>La résolution distante suit la fenêtre.</value>
@@ -1186,7 +1186,7 @@ Espaces déjà présents, laissés tels quels : {4}</value>
     <value>Lucarne {0} est disponible</value>
   </data>
   <data name="Update_InstalledTitle" xml:space="preserve">
-    <value>Lucarne {0} est installé</value>
+    <value>La version {0} de Lucarne est installée</value>
   </data>
   <data name="Update_Install" xml:space="preserve">
     <value>Mettre à jour</value>
@@ -1216,7 +1216,7 @@ Espaces déjà présents, laissés tels quels : {4}</value>
     <value>Masquer jusqu'au prochain démarrage</value>
   </data>
   <data name="Update_OtherInstances" xml:space="preserve">
-    <value>Un autre Lucarne est ouvert à partir de ce même fichier, peut-être celui d'un autre utilisateur sur un ordinateur partagé. Il doit être fermé avant que la mise à jour puisse s'installer.</value>
+    <value>Une autre instance de Lucarne est ouverte à partir de ce même fichier, peut-être celle d'un autre utilisateur sur un ordinateur partagé. Elle doit être fermée avant que la mise à jour puisse s'installer.</value>
   </data>
   <data name="Update_ConfirmTitle" xml:space="preserve">
     <value>Mettre à jour Lucarne</value>
@@ -1228,7 +1228,7 @@ Espaces déjà présents, laissés tels quels : {4}</value>
     <value>Lucarne doit redémarrer pour terminer la mise à jour : vos sessions ouvertes seront fermées et ne seront pas rouvertes. Continuer ?</value>
   </data>
   <data name="Update_Failed" xml:space="preserve">
-    <value>La mise à jour a échoué ({0}). Lucarne n'a pas été modifié.</value>
+    <value>La mise à jour a échoué ({0}). La version en place n'a pas changé.</value>
   </data>
   <data name="Update_HashMismatch" xml:space="preserve">
     <value>Le fichier téléchargé n'a pas passé le contrôle d'intégrité. Rien n'a été installé.</value>
