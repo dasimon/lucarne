@@ -7,11 +7,10 @@ public sealed class SqliteDatabase(string path)
 {
     public string Path { get; } = path;
 
-    /// <summary>%APPDATA%\Lucarne\connections.db. The ACL is inherited from %APPDATA%, so SYSTEM and the local
+    /// <summary>%APPDATA%\Lucarne\connections.db (in <see cref="AppDataRoot"/>). The ACL is inherited from %APPDATA%, so SYSTEM and the local
     /// Administrators group can read the file as well. Local administrators are outside the threat model,
     /// and the secret blobs stay protected by DPAPI CurrentUser regardless.</summary>
-    public static string DefaultPath() => System.IO.Path.Combine(
-        Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "Lucarne", "connections.db");
+    public static string DefaultPath() => System.IO.Path.Combine(AppDataRoot.Path, "connections.db");
 
     private string ConnectionString => new SqliteConnectionStringBuilder
     {

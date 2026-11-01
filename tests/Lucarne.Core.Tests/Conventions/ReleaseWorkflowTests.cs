@@ -55,6 +55,39 @@ public sealed class ReleaseWorkflowTests
     }
 
     [Fact]
+    public void The_release_attaches_the_executable_under_both_names_and_the_sums()
+    {
+        // RemoteDeck 0.9.0 looks for an asset named RemoteDeck.exe and never for Lucarne.exe: without
+        // the second name, every 0.9.0 would find nothing to install and stay where it is.
+        // The block is the lines indented deeper than "files:" itself.
+        var files = Regex.Match(Workflow(), @"^([ \t]+)files: \|\r?\n((?:\1[ \t]+[^\r\n]*\r?\n)+)", RegexOptions.Multiline);
+
+        Assert.True(files.Success, "The release step has no 'files:' list.");
+        var attached = files.Groups[2].Value
+            .Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        Assert.Equal(new[] { "publish/Lucarne.exe", "RemoteDeck.exe", "SHA256SUMS" }, attached);
+    }
+
+    [Fact]
+    public void The_compatibility_copy_is_made_outside_publish()
+    {
+        // publish/ must hold Lucarne.exe alone (a step refuses anything else), and the copy is the
+        // published file itself, not a second build that could differ by a byte.
+        Assert.Contains("Copy-Item publish/Lucarne.exe RemoteDeck.exe", Workflow(), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void The_sums_list_both_names()
+    {
+        // One line per attached executable, the same hash on both: Sha256Sums.Find is what each
+        // updater reads, the old one with "RemoteDeck.exe", the new one with "Lucarne.exe".
+        var workflow = Workflow();
+
+        Assert.Contains("\"$hash *Lucarne.exe\"", workflow, StringComparison.Ordinal);
+        Assert.Contains("\"$hash *RemoteDeck.exe\"", workflow, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void A_tag_with_a_hyphen_is_published_as_a_pre_release()
     {
         // Pre-releases are never offered by the update check ("latest" skips them), but only if

@@ -114,7 +114,7 @@ jobs:
           }
           Write-Host 'The bundled Lucarne.dll carries the release update channel.'
 
-      # The release attaches publish/Lucarne.exe and nothing else, so a publish that leaves
+      # The release attaches publish/Lucarne.exe and nothing else from publish/, so a publish that leaves
       # anything beside it ships a binary that cannot start: native libraries are not bundled
       # unless IncludeNativeLibrariesForSelfExtract is set, and the .exe alone then dies with a
       # DllNotFoundException inside a window procedure -- reported by Windows as 0xC000041D, with
@@ -130,6 +130,19 @@ jobs:
           }
           Write-Host "publish/ holds Lucarne.exe alone ($([math]::Round((Get-Item publish/Lucarne.exe).Length / 1MB)) MB)."
 
+      # Lucarne was called RemoteDeck up to 0.9.0, and the updater 0.9.0 shipped looks for an asset
+      # named RemoteDeck.exe and its line in SHA256SUMS -- never for Lucarne.exe. Without this copy,
+      # every 0.9.0 would find nothing to install and stay on 0.9.0 for good. Same bytes, so the
+      # same hash and the same attestation (which is looked up by digest). The copy goes outside
+      # publish/, which must hold Lucarne.exe alone (checked above). Remove it, with its line below,
+      # once no 0.9.0 is meant to be able to update any more: from then on, those users download
+      # Lucarne by hand.
+      - name: Keep RemoteDeck 0.9.0 able to update
+        shell: pwsh
+        run: |
+          Copy-Item publish/Lucarne.exe RemoteDeck.exe
+          Write-Host 'RemoteDeck.exe is a copy of publish/Lucarne.exe, for the updater of RemoteDeck 0.9.0.'
+
       # The executable is not code-signed. What a downloader can check instead: the hash, beside it,
       # and the provenance attestation — `gh attestation verify Lucarne.exe --repo <owner>/lucarne`
       # proves the file was built by this workflow from the tagged commit.
@@ -138,8 +151,15 @@ jobs:
         shell: pwsh
         run: |
           $hash = (Get-FileHash publish/Lucarne.exe -Algorithm SHA256).Hash.ToLowerInvariant()
-          # The sha256sum format, so `sha256sum -c SHA256SUMS` works as well as Get-FileHash.
-          "$hash *Lucarne.exe" | Set-Content -Path SHA256SUMS -Encoding ascii -NoNewline
+          $copy = (Get-FileHash RemoteDeck.exe -Algorithm SHA256).Hash.ToLowerInvariant()
+          if ($copy -ne $hash) {
+            Write-Host "::error::RemoteDeck.exe ($copy) is not the same file as Lucarne.exe ($hash)."
+            exit 1
+          }
+          # The sha256sum format, so `sha256sum -c SHA256SUMS` works as well as Get-FileHash. One
+          # line per attached executable: Lucarne's updater reads the first, 0.9.0's the second.
+          "$hash *Lucarne.exe", "$hash *RemoteDeck.exe" -join "`n" |
+            Set-Content -Path SHA256SUMS -Encoding ascii -NoNewline
           Write-Host "SHA-256: $hash"
 
       - uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
@@ -151,6 +171,7 @@ jobs:
         with:
           files: |
             publish/Lucarne.exe
+            RemoteDeck.exe
             SHA256SUMS
           generate_release_notes: true
           # A tag with a hyphen (v1.2.0-rc.1) is a pre-release. The tag filter above lets those

@@ -35,6 +35,18 @@ public sealed class Sha256SumsTests
     }
 
     [Theory]
+    // What release.yml writes since the rename: the same bytes under both names, so that a
+    // RemoteDeck 0.9.0, which looks for its own name, finds a line as well as Lucarne does.
+    [InlineData("Lucarne.exe")]
+    [InlineData("RemoteDeck.exe")]
+    public void Either_name_is_found_in_the_two_line_listing(string fileName)
+    {
+        var content = $"{Hash} *Lucarne.exe\n{Hash} *RemoteDeck.exe";
+
+        Assert.Equal(Hash, Sha256Sums.Find(content, fileName));
+    }
+
+    [Theory]
     [InlineData("")]
     [InlineData("\r\n")]
     [InlineData("not a listing at all")]

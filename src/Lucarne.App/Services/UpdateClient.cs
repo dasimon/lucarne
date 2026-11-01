@@ -34,6 +34,11 @@ internal sealed class UpdateClient : IDisposable
     public static string WorkDirectory { get; } = Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Lucarne", "update");
 
+    /// <summary>Where RemoteDeck, up to 0.9.0, kept its downloads (in an <c>update</c> folder):
+    /// <c>%LOCALAPPDATA%\RemoteDeck</c>. Downloads only, so it is deleted rather than carried over.</summary>
+    public static string LegacyLocalRoot { get; } = Path.Combine(
+        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "RemoteDeck");
+
     /// <summary>The latest release when it is newer than the running build; null when it is not, and
     /// without any request when this build cannot update (<see cref="BuildInfo.CanUpdate"/>).</summary>
     /// <exception cref="UpdateException">GitHub could not be reached, answered with an error, or

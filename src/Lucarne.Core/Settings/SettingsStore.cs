@@ -1,4 +1,5 @@
 using System.Text.Json;
+using Lucarne.Core.Data;
 
 namespace Lucarne.Core.Settings;
 
@@ -16,9 +17,8 @@ public sealed class SettingsStore(string path)
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
     };
 
-    /// <summary>%APPDATA%\Lucarne\settings.json — beside the database, roaming with the profile.</summary>
-    public static string DefaultPath()
-        => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "Lucarne", "settings.json");
+    /// <summary>%APPDATA%\Lucarne\settings.json (in <see cref="AppDataRoot"/>) — beside the database, roaming with the profile.</summary>
+    public static string DefaultPath() => Path.Combine(AppDataRoot.Path, "settings.json");
 
     /// <summary>Returns the stored settings, or defaults when the file is missing, unreadable or corrupt.</summary>
     public AppSettings Load()

@@ -37,26 +37,46 @@ public partial class App : System.Windows.Application
     /// <summary>The executable to start once the application has exited; see <see cref="RestartAfterExit"/>.</summary>
     private string? _restartPath;
 
+    /// <summary>
+    /// How long a start waits for the RemoteDeck folder to be let go of before using it as it is.
+    /// RemoteDeck 0.9.0 starts the updated executable from its <c>Exit</c> event, its log still open,
+    /// and its process ends a moment later; measured, a directory with any file open inside cannot
+    /// be renamed. Spent only while that folder is held: by an exiting 0.9.0, briefly, or by one
+    /// still running from another copy of the executable, at every start until it closes.
+    /// </summary>
+    private static readonly TimeSpan LegacyFolderGrace = TimeSpan.FromSeconds(2);
+
     protected override void OnStartup(StartupEventArgs e)
     {
         base.OnStartup(e);
+
+        // The data folder first, in every mode: the log, the database and the settings are all in
+        // it, and the first of them to touch the disk would otherwise create %APPDATA%\Lucarne beside
+        // the RemoteDeck folder of a user just updated from 0.9.0, whose connections would then stay
+        // behind. Logged once the log is open, below. The elevated step does not wait: it runs while
+        // the Lucarne that started it holds its own log open in whichever folder that one uses.
+        var applyUpdate = e.Args is [ApplyUpdateArguments.Verb, ..];
+        var migration = AppDataRoot.Resolve(applyUpdate ? TimeSpan.Zero : LegacyFolderGrace);
         LogCrashes();
 
         // The elevated half of an update: copy, check, swap, exit. Before everything else, so that
         // this administrator process never opens the database, a theme watcher or a window.
-        if (e.Args is [ApplyUpdateArguments.Verb, ..])
+        if (applyUpdate)
         {
-            ApplyUpdateAndExit(e.Args);
+            ApplyUpdateAndExit(e.Args, migration);
             return;
         }
 
         // What a previous update left: the old executable, a staged copy, the downloads. Only the
         // update work folder, never the Lucarne data folder that contains it. In a protected folder
         // the old executable is refused here; the elevated step had Windows delete it at its restart.
+        // RemoteDeck's own work folder goes too, and its parent if that leaves it empty.
         if (Environment.ProcessPath is { } exe)
         {
             UpdateSwap.CleanUp(exe, UpdateClient.WorkDirectory);
         }
+
+        LegacyDataFolder.RemoveUpdateFolder(UpdateClient.LegacyLocalRoot);
 
         // Detached session windows are deliberately owner-less — an owned window is always painted
         // above its owner and minimises with it, which is the opposite of a session torn onto a
@@ -67,6 +87,7 @@ public partial class App : System.Windows.Application
         Wpf.Ui.Appearance.ApplicationThemeManager.Changed += OnApplicationThemeChanged;
         ApplyOverriddenCulture();
         ProbeLog.Write("startup", $"Lucarne starting, log at {ProbeLog.Path}");
+        LogDataFolder(migration);
         try
         {
             // Built here rather than in a field initialiser: a throwing initialiser would kill the process before OnStartup runs.
@@ -153,11 +174,12 @@ public partial class App : System.Windows.Application
     /// command line exits too, with <see cref="UpdateInstaller.ExitBadArguments"/>, rather than
     /// opening an elevated window.
     /// </summary>
-    private static void ApplyUpdateAndExit(string[] args)
+    private static void ApplyUpdateAndExit(string[] args, MigrationResult migration)
     {
         // A file of its own: the Lucarne waiting for this process has the main log open.
         ProbeLog.UseApplyUpdateLog();
         ProbeLog.Write("startup", $"Lucarne starting in {ApplyUpdateArguments.Verb} mode, log at {ProbeLog.Path}");
+        LogDataFolder(migration);
         int code;
         if (!ApplyUpdateArguments.TryParse(args, out var source, out var sha256))
         {
@@ -187,6 +209,19 @@ public partial class App : System.Windows.Application
         // shell window once this method returns. Ending the process here means no window is ever built.
         Environment.Exit(code);
     }
+
+    /// <summary>States which data folder this session uses and what became of RemoteDeck's.</summary>
+    private static void LogDataFolder(MigrationResult migration) => ProbeLog.Write("startup", migration switch
+    {
+        MigrationResult.Moved =>
+            $"Data folder {AppDataRoot.Path}, carried over from {AppDataRoot.LegacyPath}",
+        MigrationResult.BothExist =>
+            $"Data folder {AppDataRoot.Path}; {AppDataRoot.LegacyPath} exists too and was left as it is, not merged",
+        MigrationResult.Locked =>
+            $"Data folder {AppDataRoot.Path} for this session: it could not be moved to {AppDataRoot.NewPath}, "
+            + "a file in it is still open (a RemoteDeck still running?); trying again at the next start",
+        _ => $"Data folder {AppDataRoot.Path}",
+    });
 
     /// <summary>
     /// Makes sure a crash leaves a line in the probe log before the process dies. Nothing here

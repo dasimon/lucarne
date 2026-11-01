@@ -1,4 +1,5 @@
 using System.IO;
+using Lucarne.Core.Data;
 
 namespace Lucarne.App.Services;
 
@@ -29,12 +30,16 @@ internal static class ProbeLog
     private static readonly object Gate = new();
     private static StreamWriter? _writer;
 
-    private static readonly string Folder = System.IO.Path.Combine(
-        Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "Lucarne", "logs");
+    private static bool _applyUpdateLog;
+
+    /// <summary>The <c>logs</c> folder of <see cref="AppDataRoot"/>. Read at each use rather than
+    /// kept: the data folder is decided at startup, and a value captured earlier would name a folder
+    /// this session does not use.</summary>
+    private static string Folder => System.IO.Path.Combine(AppDataRoot.Path, "logs");
 
     /// <summary>The file this process writes to: <c>probe-l0.log</c>, or <see cref="ApplyUpdatePath"/>
     /// once <see cref="UseApplyUpdateLog"/> has been called.</summary>
-    public static string Path { get; private set; } = System.IO.Path.Combine(Folder, "probe-l0.log");
+    public static string Path => _applyUpdateLog ? ApplyUpdatePath : System.IO.Path.Combine(Folder, "probe-l0.log");
 
     /// <summary>
     /// The log of the elevated <c>--apply-update</c> step, beside the main one. A file of its own
@@ -43,7 +48,7 @@ internal static class ProbeLog
     /// waiting one's next line lands on top of the elevated one's (measured). For an elevation by
     /// another administrator account, it is in that account's application data.
     /// </summary>
-    public static string ApplyUpdatePath { get; } = System.IO.Path.Combine(Folder, "probe-l0-apply-update.log");
+    public static string ApplyUpdatePath => System.IO.Path.Combine(Folder, "probe-l0-apply-update.log");
 
     /// <summary>Where the previous log goes when the current one rolls.</summary>
     public static string PreviousPath => Path + ".1";
@@ -56,7 +61,7 @@ internal static class ProbeLog
         {
             _writer?.Dispose();
             _writer = null;
-            Path = ApplyUpdatePath;
+            _applyUpdateLog = true;
         }
     }
 
