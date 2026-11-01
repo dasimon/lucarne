@@ -157,7 +157,7 @@ jobs:
             exit 1
           }
           # The sha256sum format, so `sha256sum -c SHA256SUMS` works as well as Get-FileHash. One
-          # line per attached executable: Lucarne's updater reads the first, 0.9.0's the second.
+          # line per attached executable: each updater finds the line with its own name.
           "$hash *Lucarne.exe", "$hash *RemoteDeck.exe" -join "`n" |
             Set-Content -Path SHA256SUMS -Encoding ascii -NoNewline
           Write-Host "SHA-256: $hash"

@@ -23,6 +23,9 @@ RemoteDeck is now Lucarne, carries its data and updates over by itself, and down
 - **RemoteDeck 0.9.0 updates itself to Lucarne** from its banner, as for any release: each
   release also carries the executable as `RemoteDeck.exe`, with its line in `SHA256SUMS`. The
   updated executable keeps its file name, `RemoteDeck.exe`, so shortcuts keep working.
+- **Once Lucarne has started, an older RemoteDeck.exe left elsewhere** (a shortcut to another
+  copy, a file saved to *Downloads*) opens with an empty list, and what is entered in it stays
+  with RemoteDeck: delete it and use Lucarne.
 
 ### Smaller download
 

@@ -1228,7 +1228,7 @@ Espaces déjà présents, laissés tels quels : {4}</value>
     <value>Lucarne doit redémarrer pour terminer la mise à jour : vos sessions ouvertes seront fermées et ne seront pas rouvertes. Continuer ?</value>
   </data>
   <data name="Update_Failed" xml:space="preserve">
-    <value>La mise à jour a échoué ({0}). La version en place n'a pas changé.</value>
+    <value>La mise à jour a échoué ({0}). La version installée n'a pas changé.</value>
   </data>
   <data name="Update_HashMismatch" xml:space="preserve">
     <value>Le fichier téléchargé n'a pas passé le contrôle d'intégrité. Rien n'a été installé.</value>
