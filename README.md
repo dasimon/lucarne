@@ -1,4 +1,4 @@
-# RemoteDeck
+# Lucarne
 
 A keyboard-first Remote Desktop (RDP) connection manager for Windows 10/11.
 Tabs, sessions you can pull out into their own window, groups, fuzzy search, a `Ctrl+K`
@@ -7,13 +7,15 @@ credential vault backed by Windows DPAPI — built on the native Remote Desktop 
 control, so the RDP protocol itself is Microsoft's, not ours. The interface is available
 in English and French.
 
+Lucarne was formerly called RemoteDeck. It is not affiliated with remotedeckapp.com.
+
 > Status: **pre-alpha**. What works: multi-session tabs, automatic reconnection,
 > dynamic resolution, a searchable connection pane with a right-click menu, an editor,
 > the credential vault, the command palette, connection import, detached session
 > windows with full screen per monitor, saved workspaces, and a fully translated
 > interface. See [`CHANGELOG.md`](CHANGELOG.md) for what each release contains.
 >
-> Automated tests cover `RemoteDeck.Core` and the repository's own conventions. The
+> Automated tests cover `Lucarne.Core` and the repository's own conventions. The
 > WPF layer has no test project, so what you see on screen is verified by hand against
 > [`docs/manual-checklist.md`](docs/manual-checklist.md) — read that list before
 > trusting a feature in production.
@@ -25,8 +27,8 @@ in English and French.
 
 ## Build
 
-    dotnet build RemoteDeck.sln
-    dotnet run --project tests/RemoteDeck.Core.Tests
+    dotnet build Lucarne.sln
+    dotnet run --project tests/Lucarne.Core.Tests
 
 **Not `dotnet test`.** The test project runs on xUnit v3, which builds it as a
 *Microsoft.Testing.Platform* application — an executable that runs its own tests, with no
@@ -39,7 +41,7 @@ rejects it, and the run ends with exit code 5 and zero tests. `global.json` alre
 the MTP runner, so if a later SDK fixes that integration, `dotnet test` starts working with
 no change to this repository.
 
-RemoteDeck talks to the Remote Desktop ActiveX control through a COM interop
+Lucarne talks to the Remote Desktop ActiveX control through a COM interop
 assembly that is **generated at build time** and never committed: the build runs
 `TlbImp.exe` over `%SystemRoot%\System32\mstscax.dll` and drops
 `Interop.MSTSCLib.dll` into `obj/`. `TlbImp.exe` ships with the Windows SDK, so you
@@ -50,13 +52,13 @@ fails under `dotnet build` with `error MSB4803`.) The build looks for the tool
 under `%ProgramFiles(x86)%\Microsoft SDKs\Windows\v10.0A\bin\NETFX 4.8 Tools`;
 if yours lives elsewhere, point at it explicitly:
 
-    dotnet build RemoteDeck.sln -p:TlbImpPath="C:\path\to\TlbImp.exe"
+    dotnet build Lucarne.sln -p:TlbImpPath="C:\path\to\TlbImp.exe"
 
 ## Usage
 
 ### First launch
 
-RemoteDeck creates `%APPDATA%\RemoteDeck\` on first start and opens on an empty
+Lucarne creates `%APPDATA%\Lucarne\` on first start and opens on an empty
 connection pane.
 
 1. Press `Ctrl+N` and fill in at least a name and a host. Everything else —
@@ -76,7 +78,7 @@ see below.
 couple of letters and press `Enter`. One list holds three kinds of entry:
 
 - **Commands** — *New connection*, *Import connections…*, *Manage credentials*,
-  *About RemoteDeck*, *Toggle the pane*, *Close session*, *Reconnect*, and — depending
+  *About Lucarne*, *Toggle the pane*, *Close session*, *Reconnect*, and — depending
   on where you opened the palette from — *Detach current session* or *Reattach this
   session to the main window*. With a connection selected in the pane: *Duplicate*,
   *Edit* and *Delete connection*.
@@ -95,7 +97,7 @@ it, and clicking outside closes the palette.
 
 - **A folder of `.rdp` files** — every file with a `full address` becomes a proposed
   connection: host and port, user name, domain, resolution, clipboard, printer, drive
-  and audio redirection, server authentication level. Anything RemoteDeck does not map
+  and audio redirection, server authentication level. Anything Lucarne does not map
   is counted and reported as `n unsupported entries ignored`, never guessed.
 - **The machines `mstsc` remembers** — `HKCU\Software\Microsoft\Terminal Server
   Client\Servers`. Those carry a host name and sometimes a user name, nothing else.
@@ -140,7 +142,7 @@ The optional **Account (UPN)** field beside it names *which* account. It is hand
 as a hint and nothing more, and it earns its place when Windows has no account cached
 yet, or has several and one has to be chosen. Once Windows knows your account the
 sign-in is silent whether the field is filled or not — it is the Windows account broker,
-not RemoteDeck, that holds the token, and RemoteDeck never sees it.
+not Lucarne, that holds the token, and Lucarne never sees it.
 
 Importing a `.rdp` file with `enablerdsaadauth:i:1` fills the field from the UPN Remote
 Desktop Connection remembers for that host.
@@ -148,7 +150,7 @@ Desktop Connection remembers for that host.
 ### Connections behind a VPN
 
 A connection can name the Windows VPN profile it needs. Before opening the session
-RemoteDeck checks whether that tunnel is up, and if it is not it says so and offers to
+Lucarne checks whether that tunnel is up, and if it is not it says so and offers to
 raise it — rather than letting the connection fail with a cryptic error about a host it
 cannot find. The profile field is a drop-down you can also type into: it lists the
 profiles the machine knows, and a name it does not offer still works.
@@ -170,9 +172,9 @@ cut or raise the VPN from anywhere and the tag changes within a few seconds, wit
 
 **It stores no VPN secret and never will.** It dials with the credential you saved in
 the Windows profile itself. Windows does not hand that password out — it returns a
-handle to it, and the handle is all RemoteDeck ever holds. A profile with nothing saved
+handle to it, and the handle is all Lucarne ever holds. A profile with nothing saved
 is therefore not dialled at all: connect it once from Windows with *Remember my sign-in
-info* ticked, and RemoteDeck can raise it from then on.
+info* ticked, and Lucarne can raise it from then on.
 
 Opening a **workspace** never asks. Its sessions open in series, and stopping that series
 on a question would turn one dialog into six: a connection with the box ticked has its
@@ -250,7 +252,7 @@ Open one from the palette, *Open workspace "PROD"*. **Opening a workspace never
 closes anything.** A connection that is not running yet is opened; one that already
 is stays connected and is only moved to where the workspace remembers it — nothing
 reconnects. Open two workspaces in a row and the screen can end up holding more
-sessions than either one describes on its own: that is the trade RemoteDeck makes so
+sessions than either one describes on its own: that is the trade Lucarne makes so
 that opening a workspace can never end a live session behind your back.
 
 Its connections open **one after another, not all at once** — six RDP negotiations
@@ -285,14 +287,14 @@ open" instead of doing anything.
 
 Workspaces live in `connections.db`, alongside your connections. Separately, a
 setting — **off by default**, toggled from the palette — snapshots the sessions you
-had open at a clean shutdown and reopens them the next time RemoteDeck starts;
+had open at a clean shutdown and reopens them the next time Lucarne starts;
 launching the app must never connect to anything you did not ask for, which is why it
 starts off. Killing the process instead of closing normally leaves the previous
 snapshot alone rather than replacing it with nothing. That snapshot lives in
 `settings.json`, not in a workspace.
 
 **Automatic reconnection.** When a session drops on a network failure — a timeout or
-a lost socket — RemoteDeck reconnects on its own: five attempts, waiting 2 s, 5 s,
+a lost socket — Lucarne reconnects on its own: five attempts, waiting 2 s, 5 s,
 10 s, 30 s then 60 s, with a visible countdown you can cancel at any time. It
 deliberately does **not** retry anything else: a refused password is never retried
 (that is how an Active Directory account gets locked out), and neither is an
@@ -313,15 +315,15 @@ or out during the session counts from the next connection. Out of full screen th
 shown shrunk into the window. Monitors at different scaling factors are not handled. A `.rdp` file
 with `use multimon:i:1` imports in this mode.
 
-Connections, credentials and workspaces live in `%APPDATA%\RemoteDeck\connections.db`.
-Before a version of RemoteDeck upgrades that file to a newer schema, it copies it to
-`connections.v<old version>.bak` beside it — the way back, since an older RemoteDeck refuses a
-database a newer one has upgraded. To go back, close RemoteDeck and copy the `.bak` over
+Connections, credentials and workspaces live in `%APPDATA%\Lucarne\connections.db`.
+Before a version of Lucarne upgrades that file to a newer schema, it copies it to
+`connections.v<old version>.bak` beside it — the way back, since an older Lucarne refuses a
+database a newer one has upgraded. To go back, close Lucarne and copy the `.bak` over
 `connections.db`. If the copy cannot be written, the upgrade does not happen: the connection pane
 stays unavailable for that run and says why, and the file is left exactly as it was.
 Window and pane layout — pane width, collapsed state, window size and position, where
 each detached session window was, and the last-session-restore switch and its snapshot
-— lives beside it in **`%APPDATA%\RemoteDeck\settings.json`**, deliberately outside the
+— lives beside it in **`%APPDATA%\Lucarne\settings.json`**, deliberately outside the
 migrated database. Deleting that file only costs you the layout, plus the restore
 switch reverting to off and its snapshot disappearing with it: nothing in it is content
 you composed or a secret, and the app falls back to its defaults without complaining.
@@ -342,9 +344,9 @@ you composed or a secret, and the app falls back to its defaults without complai
 | `F2` | Edit the selected connection | no |
 | `Delete` | Delete the selected connection — press twice; the first press only arms it, and the confirmation expires after 5 seconds | no |
 
-**RemoteDeck inside a RemoteDeck.** When the remote machine runs RemoteDeck too — a jump
-host, an admin workstation — the shortcuts marked *yes* above are caught by the RemoteDeck
-you are sitting at and never reach the one over there. Tick *Send RemoteDeck's shortcuts to
+**Lucarne inside a Lucarne.** When the remote machine runs Lucarne too — a jump
+host, an admin workstation — the shortcuts marked *yes* above are caught by the Lucarne
+you are sitting at and never reach the one over there. Tick *Send Lucarne's shortcuts to
 this remote desktop* in that connection's editor (*Advanced*): while its remote desktop has
 the keyboard, they all go through to it, except `Ctrl+Alt+Pause`, which stays here as the
 way out of full screen.
@@ -374,13 +376,13 @@ Search is fuzzy and ignores case and accents; it matches on name, host and group
 name, sorts favorites first, and highlights the characters your query hit.
 
 **Which shortcuts cross into a session, and why.** A remote session is another
-computer, and its applications own your muscle memory there. So RemoteDeck takes only
+computer, and its applications own your muscle memory there. So Lucarne takes only
 the keys that act **on the session itself or on its own window chrome** — switch,
 close, detach, full screen, the pane, and the palette that gets you out of any of it.
 The keys that act on the **connection list** are left alone: `Ctrl+N`, `Ctrl+F`, `F2`,
 `Delete` and `Enter` reach the remote application, because pressing `Ctrl+F` in a
 remote editor should find text there, not focus a search box hidden behind the
-session. They work whenever RemoteDeck's own interface has the keyboard — the pane,
+session. They work whenever Lucarne's own interface has the keyboard — the pane,
 the search box, a dialog. To reach a connection from inside a session, use `Ctrl+K`,
 which always opens the palette.
 
@@ -395,14 +397,14 @@ palette, from inside a text field included.
 
 If a security policy blocks the low-level keyboard hook, application shortcuts
 cannot be intercepted while the remote desktop has focus. `Ctrl+Alt+Left` /
-`Ctrl+Alt+Right` still hand the focus back to RemoteDeck — the control raises
+`Ctrl+Alt+Right` still hand the focus back to Lucarne — the control raises
 that one itself, hook or no hook.
 
 ### Language
 
 The interface ships in **English and French** and follows your Windows display
 language — there is nothing to configure. To check the other one without changing
-Windows, set `REMOTEDECK_UI_CULTURE` before starting (`en-US`, `fr-FR`); an
+Windows, set `LUCARNE_UI_CULTURE` before starting (`en-US`, `fr-FR`); an
 unrecognised value is ignored and the system language is kept.
 
 Two things stay in English whatever the interface language: the log file, which is
@@ -412,7 +414,7 @@ French sentence around an English reason. Translating them is a v2 job.
 
 ### Settings, and where they are not
 
-RemoteDeck has **no settings window**. Almost everything it remembers is set by using
+Lucarne has **no settings window**. Almost everything it remembers is set by using
 it — the pane's width by dragging its edge, whether it is collapsed by `Ctrl+B`, the
 window's size and position by moving it — and comes back because it was observed, not
 because it was configured.
@@ -435,10 +437,10 @@ use.
 
 | Variable | Effect |
 |---|---|
-| `REMOTEDECK_UI_CULTURE` | Forces the interface language for one run (`en-US`, `fr-FR`). Unrecognised values are ignored and the Windows display language is kept. |
-| `REMOTEDECK_PROBE_SHORTCUTS` | Selects which of the four keyboard-interception mechanisms is used. |
+| `LUCARNE_UI_CULTURE` | Forces the interface language for one run (`en-US`, `fr-FR`). Unrecognised values are ignored and the Windows display language is kept. |
+| `LUCARNE_PROBE_SHORTCUTS` | Selects which of the four keyboard-interception mechanisms is used. |
 
-`REMOTEDECK_PROBE_SHORTCUTS` is a leftover from the lot 0 probe and should normally be
+`LUCARNE_PROBE_SHORTCUTS` is a leftover from the lot 0 probe and should normally be
 left unset. Its default, `LowLevelKeyboardHook`, is the **only** mechanism the probe
 found to intercept anything while the remote desktop holds the keyboard; the three
 thread-scoped alternatives arm without error and then see no keystrokes at all. Setting
@@ -450,20 +452,20 @@ value falls back to the default and says so in the log.
 A credential (user name, optional domain, password) is saved once and reused by
 any number of connections. The password is encrypted with Windows DPAPI in
 `CurrentUser` scope, with 32 bytes of per-credential entropy regenerated on every
-save, and stored as a blob in `%APPDATA%\RemoteDeck\connections.db`. It never
+save, and stored as a blob in `%APPDATA%\Lucarne\connections.db`. It never
 exists as a managed string: it is lent to the Remote Desktop control as a native
 `BSTR` for the duration of one call, then zeroed.
 
-Two secrets RemoteDeck deliberately does **not** keep. A web-account session's token
-belongs to the Windows account broker — RemoteDeck passes a UPN as a hint and nothing
-else. A VPN profile's password belongs to the Windows profile — when RemoteDeck raises a
+Two secrets Lucarne deliberately does **not** keep. A web-account session's token
+belongs to the Windows account broker — Lucarne passes a UPN as a hint and nothing
+else. A VPN profile's password belongs to the Windows profile — when Lucarne raises a
 tunnel it dials with the *handle* Windows returns in place of that password, sixteen
 asterisks exchanged for the real secret inside Windows. Neither ever reaches
 `connections.db`, and neither is ever asked for.
 
 ## Security
 
-RemoteDeck stores credentials encrypted with Windows DPAPI, bound to your
+Lucarne stores credentials encrypted with Windows DPAPI, bound to your
 Windows user session. See [`SECURITY.md`](SECURITY.md) for the threat model —
 including what DPAPI does **not** protect against.
 
@@ -476,37 +478,37 @@ the project has users.
 What you can check instead, before running it. Each release carries a `SHA256SUMS`
 file beside the executable:
 
-    (Get-FileHash RemoteDeck.exe -Algorithm SHA256).Hash
+    (Get-FileHash Lucarne.exe -Algorithm SHA256).Hash
 
 and a provenance attestation, which proves the file was built by this repository's
 release workflow from the tagged commit:
 
-    gh attestation verify RemoteDeck.exe --repo dasimon/remotedeck
+    gh attestation verify Lucarne.exe --repo dasimon/lucarne
 
 ### Built-in update
 
-RemoteDeck can look for a newer release itself, so that an unsigned executable does not
+Lucarne can look for a newer release itself, so that an unsigned executable does not
 have to be fetched and checked by hand each time. It talks to GitHub, and only GitHub.
 
 - **What it asks.** Ten seconds after the window opens, then once a day, it reads the
-  latest release of `dasimon/remotedeck` from the GitHub API. Only a tag of the form
+  latest release of `dasimon/lucarne` from the GitHub API. Only a tag of the form
   `vMAJOR.MINOR.PATCH` that is higher than the running version is offered, as a banner at
   the bottom of the connection pane. *About* → *Check for updates* asks on demand.
   A build that was not stamped by the release workflow (a local build) asks nothing.
-- **What it checks.** It downloads `RemoteDeck.exe` and the `SHA256SUMS` file of that release
+- **What it checks.** It downloads `Lucarne.exe` and the `SHA256SUMS` file of that release
   over HTTPS, from GitHub's own hosts only, with a size cap on each. The executable is
   installed only if its SHA-256 matches `SHA256SUMS` **and**, when GitHub states one, the
   digest GitHub computed for the asset. Otherwise nothing is touched. It does not verify the
   provenance attestation: that remains the `gh attestation verify` above.
 - **What it does.** It replaces the executable in place and starts the new version, keeping
-  the previous one beside it as `RemoteDeck.exe.old`: removed at the next launch in a folder
+  the previous one beside it as `Lucarne.exe.old`: removed at the next launch in a folder
   you can write to, at the next Windows restart in a protected one. If the folder is
   protected (`C:\Program Files`, say), Windows asks for administrator rights for that one
   step; if you refuse, the verified file is saved to your *Downloads* folder instead and the
   folder opens. Your open sessions are closed for the restart, and reopened if *Reopen last
   session at startup* is on. If you opened a session while the elevation prompt was up,
-  RemoteDeck asks again, and the new version otherwise starts when you close RemoteDeck.
-- **When it refuses.** While another RemoteDeck is running from the same executable (on a
+  Lucarne asks again, and the new version otherwise starts when you close Lucarne.
+- **When it refuses.** While another Lucarne is running from the same executable (on a
   shared computer, possibly another user's), since Windows cannot replace a file in use.
 - **How to turn it off.** Command palette (`Ctrl+K`) → *Check for updates automatically*. The
   setting is per user and stops the automatic checks only; *About* → *Check for updates* still

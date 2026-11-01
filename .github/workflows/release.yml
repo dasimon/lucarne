@@ -56,9 +56,9 @@ jobs:
           Write-Host "Publishing as $($Matches[1])."
 
       # The same gate as ci.yml: a tag pushed on a commit whose tests fail does not ship.
-      - run: dotnet restore RemoteDeck.sln
-      - run: dotnet build RemoteDeck.sln --configuration Release --no-restore
-      - run: dotnet run --project tests/RemoteDeck.Core.Tests --configuration Release --no-build
+      - run: dotnet restore Lucarne.sln
+      - run: dotnet build Lucarne.sln --configuration Release --no-restore
+      - run: dotnet run --project tests/Lucarne.Core.Tests --configuration Release --no-build
 
       # UpdateChannel=release is what makes the shipped executable look for updates, and only in
       # this repository's releases. It is compiled in as assembly metadata, so no setting on the
@@ -67,7 +67,7 @@ jobs:
       # a test in the repository fails if this file ever mentions it.
       - name: Publish single-file executable (x64, self-contained)
         run: >
-          dotnet publish src/RemoteDeck.App -c Release -r win-x64
+          dotnet publish src/Lucarne.App -c Release -r win-x64
           --self-contained true -p:PublishSingleFile=true -p:DebugType=none
           -p:UpdateChannel=release -p:Version=${{ env.VERSION }} -o publish
 
@@ -76,18 +76,18 @@ jobs:
       - name: Refuse to ship a binary that does not know its own version
         shell: pwsh
         run: |
-          $file = (Get-Item publish/RemoteDeck.exe).VersionInfo
+          $file = (Get-Item publish/Lucarne.exe).VersionInfo
           $expected = $env:VERSION.Split('-')[0]
           if ($file.FileVersion -notlike "$expected*") {
-            Write-Host "::error::RemoteDeck.exe reports FileVersion $($file.FileVersion), expected $expected."
+            Write-Host "::error::Lucarne.exe reports FileVersion $($file.FileVersion), expected $expected."
             exit 1
           }
-          Write-Host "RemoteDeck.exe reports $($file.FileVersion) / $($file.ProductVersion)."
+          Write-Host "Lucarne.exe reports $($file.FileVersion) / $($file.ProductVersion)."
 
       # The channel stamp has the same weakness and a worse symptom: without it the executable never
       # looks for an update, so the users of this release would never be offered the next one, and
       # nothing anywhere would say so. It is an assembly attribute, AssemblyMetadata("UpdateChannel",
-      # "release"), which the compiler stores in RemoteDeck.dll as a fixed byte sequence: prolog 01 00,
+      # "release"), which the compiler stores in Lucarne.dll as a fixed byte sequence: prolog 01 00,
       # each string prefixed with its length, no named arguments (00 00). The single file compresses
       # what it bundles, so the sequence is looked for in the assembly the publish bundled rather
       # than in the .exe. Looking for the whole blob, not the two words, keeps a stray string from
@@ -100,21 +100,21 @@ jobs:
           # Latin-1 maps each byte to one character, so a string search is a byte search.
           $latin1 = [Text.Encoding]::Latin1
           # The single file is compressed (EnableCompressionInSingleFile), so the attribute's bytes
-          # are not in RemoteDeck.exe as such: the check reads the assembly the publish just bundled,
+          # are not in Lucarne.exe as such: the check reads the assembly the publish just bundled,
           # the one in obj/ for this configuration and runtime.
-          $assembly = "$PWD/src/RemoteDeck.App/obj/Release/net10.0-windows/win-x64/RemoteDeck.dll"
+          $assembly = "$PWD/src/Lucarne.App/obj/Release/net10.0-windows/win-x64/Lucarne.dll"
           if (-not (Test-Path $assembly)) {
             Write-Host "::error::$assembly not found: the update-channel check cannot read the bundled assembly."
             exit 1
           }
           $dll = $latin1.GetString([IO.File]::ReadAllBytes($assembly))
           if ($dll.IndexOf($latin1.GetString($blob), [StringComparison]::Ordinal) -lt 0) {
-            Write-Host '::error::RemoteDeck.dll does not carry AssemblyMetadata("UpdateChannel", "release"): the executable would never look for an update.'
+            Write-Host '::error::Lucarne.dll does not carry AssemblyMetadata("UpdateChannel", "release"): the executable would never look for an update.'
             exit 1
           }
-          Write-Host 'The bundled RemoteDeck.dll carries the release update channel.'
+          Write-Host 'The bundled Lucarne.dll carries the release update channel.'
 
-      # The release attaches publish/RemoteDeck.exe and nothing else, so a publish that leaves
+      # The release attaches publish/Lucarne.exe and nothing else, so a publish that leaves
       # anything beside it ships a binary that cannot start: native libraries are not bundled
       # unless IncludeNativeLibrariesForSelfExtract is set, and the .exe alone then dies with a
       # DllNotFoundException inside a window procedure -- reported by Windows as 0xC000041D, with
@@ -122,35 +122,35 @@ jobs:
       - name: Refuse to ship a single file that is not one
         shell: pwsh
         run: |
-          $extra = Get-ChildItem publish -Recurse -File | Where-Object Name -ne 'RemoteDeck.exe'
+          $extra = Get-ChildItem publish -Recurse -File | Where-Object Name -ne 'Lucarne.exe'
           if ($extra) {
-            Write-Host '::error::publish/ holds more than RemoteDeck.exe -- the attached binary would not start on its own:'
+            Write-Host '::error::publish/ holds more than Lucarne.exe -- the attached binary would not start on its own:'
             $extra | ForEach-Object { Write-Host "::error::  $($_.FullName.Substring($PWD.Path.Length + 1))" }
             exit 1
           }
-          Write-Host "publish/ holds RemoteDeck.exe alone ($([math]::Round((Get-Item publish/RemoteDeck.exe).Length / 1MB)) MB)."
+          Write-Host "publish/ holds Lucarne.exe alone ($([math]::Round((Get-Item publish/Lucarne.exe).Length / 1MB)) MB)."
 
       # The executable is not code-signed. What a downloader can check instead: the hash, beside it,
-      # and the provenance attestation — `gh attestation verify RemoteDeck.exe --repo <owner>/remotedeck`
+      # and the provenance attestation — `gh attestation verify Lucarne.exe --repo <owner>/lucarne`
       # proves the file was built by this workflow from the tagged commit.
       # Written outside publish/, which must hold the executable alone (checked above).
       - name: Compute the SHA-256 of the executable
         shell: pwsh
         run: |
-          $hash = (Get-FileHash publish/RemoteDeck.exe -Algorithm SHA256).Hash.ToLowerInvariant()
+          $hash = (Get-FileHash publish/Lucarne.exe -Algorithm SHA256).Hash.ToLowerInvariant()
           # The sha256sum format, so `sha256sum -c SHA256SUMS` works as well as Get-FileHash.
-          "$hash *RemoteDeck.exe" | Set-Content -Path SHA256SUMS -Encoding ascii -NoNewline
+          "$hash *Lucarne.exe" | Set-Content -Path SHA256SUMS -Encoding ascii -NoNewline
           Write-Host "SHA-256: $hash"
 
       - uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
         with:
-          subject-path: publish/RemoteDeck.exe
+          subject-path: publish/Lucarne.exe
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64 # v3.0.3
         with:
           files: |
-            publish/RemoteDeck.exe
+            publish/Lucarne.exe
             SHA256SUMS
           generate_release_notes: true
           # A tag with a hyphen (v1.2.0-rc.1) is a pre-release. The tag filter above lets those

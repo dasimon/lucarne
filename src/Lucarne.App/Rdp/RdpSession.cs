@@ -1,0 +1,877 @@
+using System.Windows;
+using System.Windows.Media;
+using System.Windows.Threading;
+using Lucarne.App.Interop;
+using Lucarne.App.Resources;
+using Lucarne.App.Services;
+using Lucarne.Core.Diagnostics;
+using Lucarne.Core.Model;
+using Lucarne.Core.Rdp;
+using Lucarne.Core.Sessions;
+
+namespace Lucarne.App.Rdp;
+
+/// <summary>
+/// One RDP session — one tab: its own hosting surface, its own control instance, its own state
+/// machine, its own reconnection countdown and its own dynamic-resolution loop.
+/// </summary>
+/// <remarks>
+/// <para>
+/// Composition: the session owns one <c>WindowsFormsHost</c> (<see cref="Host"/>, handed to the
+/// shell so it can put it in its grid), one <see cref="RdpAxHost"/> parented to it, and one
+/// <see cref="RdpSessionHost"/> built on top. The first two exist from construction — the shell
+/// needs a visual to insert — while the OCX itself is created in <see cref="StartAsync"/>: an
+/// <c>AxHost</c> only produces its COM object once it has a window handle, which requires
+/// <see cref="Host"/> to already be in the visual tree. Hence the contract: add
+/// <see cref="Host"/> to a container first, call <see cref="StartAsync"/> second.
+/// </para>
+/// <para>
+/// Connecting is not done here. The <c>supplyAndConnect</c> delegate handed to the constructor is
+/// the shell's: it applies the settings, lends the secret through the vault and calls
+/// <see cref="RdpSessionHost.Connect"/>. It is re-invoked identically for every retry, so the
+/// session never has to keep a credential — or anything derived from one — alive between attempts.
+/// </para>
+/// <para>
+/// Threading: everything below runs on the UI thread. The two events coming from the control's COM
+/// sinks are re-posted through <see cref="Dispatcher.BeginInvoke(Delegate, object?[])"/> — not
+/// because <see cref="RdpSessionHost"/> raises them off-thread (it does not), but so that state
+/// changes are ordered by a single queue whatever the control does.
+/// </para>
+/// <para>
+/// Accessibility note: <see cref="RdpSessionHost"/> is internal, so the constructor's delegate type
+/// is internal and this class cannot be public (CS0051). It lives in the same assembly as its only
+/// consumer, the shell.
+/// </para>
+/// </remarks>
+internal sealed class RdpSession : IDisposable
+{
+    /// <summary>How long the window must stay still before the remote resolution follows it.</summary>
+    private static readonly TimeSpan ResizeDebounce = TimeSpan.FromMilliseconds(300);
+
+    /// <summary>Countdown granularity: the UI shows whole seconds.</summary>
+    private static readonly TimeSpan CountdownTick = TimeSpan.FromSeconds(1);
+
+    /// <summary>
+    /// How close to zero the countdown must get for the retry to fire. A <c>DispatcherTimer</c> never
+    /// ticks early but regularly ticks a few milliseconds late, so the tick that lands on the due date
+    /// sees a few milliseconds still to go; comparing against zero would push a 2 s backoff to 3 s.
+    /// Half a tick is the break-even point — anything below it is closer to now than to the next tick.
+    /// </summary>
+    private static readonly TimeSpan CountdownTolerance = TimeSpan.FromMilliseconds(500);
+
+    /// <summary>
+    /// Smallest remote desktop this session will ask for, mirroring the floor
+    /// <c>ShellWindow</c> already applies to the initial size: a pane dragged almost shut must
+    /// not turn into a 120×40 desktop, nor burn the one-shot SmartSizing fallback on a refusal.
+    /// </summary>
+    private const int MinimumRemoteWidth = 640;
+    private const int MinimumRemoteHeight = 480;
+
+    /// <summary>
+    /// Ceiling on either side of the remote desktop. Not a limit quoted from the control's
+    /// documentation — an enforced bound, so an absurd layout or a bogus DPI scale cannot ask for a
+    /// desktop no server would grant and cost the session its dynamic resolution.
+    /// </summary>
+    private const int MaximumRemoteSide = 8192;
+
+    /// <summary>
+    /// Resizes tried before giving up on dynamic resolution. One refusal is not a verdict: the
+    /// remote desktop can still be settling just after logon, so the first failure buys a retry.
+    /// </summary>
+    private const int MaxDisplayAttempts = 2;
+
+    /// <summary>Wait between a refused resize and the single retry that decides the fallback.</summary>
+    private static readonly TimeSpan DisplayRetryDelay = TimeSpan.FromSeconds(2);
+
+    /// <summary>How long an All monitors session's control is kept after the session, before it is
+    /// destroyed: see <see cref="DisposeControlLater"/>.</summary>
+    private static readonly TimeSpan MultimonDisposeDelay = TimeSpan.FromSeconds(1);
+
+    private readonly RdpControlVersion _version;
+    private readonly Func<RdpSessionHost, (int Width, int Height)?, Task> _supplyAndConnect;
+
+    /// <summary>
+    /// The state of the profile this connection needs, asked afresh at every decision. A session
+    /// with no profile answers <see cref="VpnState.NotRequired"/> and nothing below changes for it.
+    /// </summary>
+    private readonly Func<VpnState> _vpnState;
+    private readonly Dispatcher _dispatcher;
+    private readonly DispatcherTimer _retryTimer;
+    private readonly DispatcherTimer _resizeTimer;
+    private readonly RdpAxHost _ax;
+
+    private RdpSessionHost? _sessionHost;
+    private DateTime _retryDueUtc;
+    private int _lastExtendedReason;
+
+    /// <summary>Set by <see cref="CancelReconnect"/>, cleared by the next attempt the user or the
+    /// shell starts: until then a drop is final, even the one an attempt already in flight reports
+    /// after the user gave up on it.</summary>
+    private bool _retriesCancelled;
+
+    /// <summary>Set once <see cref="RdpSessionHost.UpdateDisplay"/> has been refused twice: from then
+    /// on the control scales the image instead, and no further resize is attempted for this session.</summary>
+    private bool _smartSizingFallback;
+
+    /// <summary>
+    /// True between <c>OnLoginComplete</c> and the next disconnect or attempt — the only window in
+    /// which the control accepts a resolution change. Asking earlier answers <c>E_UNEXPECTED</c>.
+    /// </summary>
+    private bool _loggedOn;
+
+    /// <summary>Consecutive refused resizes; at <see cref="MaxDisplayAttempts"/> the session gives up.</summary>
+    private int _displayFailures;
+
+    /// <summary>Remote size the running attempt was configured with, so the logon can tell whether
+    /// the window has moved since — and only then spend a resize on it.</summary>
+    private int _requestedWidth;
+    private int _requestedHeight;
+
+    private bool _disposed;
+
+    /// <param name="connection">The saved row this session serves. Read-only here.</param>
+    /// <param name="version">Control version the shell selected from the catalog.</param>
+    /// <param name="supplyAndConnect">
+    /// Configures the control, lends the secret and calls <c>Connect()</c>. Invoked for the first
+    /// attempt and for every retry. Throwing out of it fails the attempt (state
+    /// <see cref="SessionState.Failed"/>, message kept in <see cref="LastWindowsDescription"/>).
+    /// Its second argument is the remote size this session measured on its own surface, or
+    /// <c>null</c> when that surface has not been laid out yet and the caller must decide.
+    /// </param>
+    /// <param name="vpnState">Reads the state of the profile <paramref name="connection"/> names.
+    /// Omitted, every drop is treated as needing no tunnel — which is what it was before the retry
+    /// loop knew about VPNs at all.</param>
+    public RdpSession(Connection connection, RdpControlVersion version, Func<RdpSessionHost, (int Width, int Height)?, Task> supplyAndConnect,
+        Func<VpnState>? vpnState = null)
+    {
+        ArgumentNullException.ThrowIfNull(connection);
+        ArgumentNullException.ThrowIfNull(version);
+        ArgumentNullException.ThrowIfNull(supplyAndConnect);
+
+        Connection = connection;
+        _version = version;
+        _supplyAndConnect = supplyAndConnect;
+        _vpnState = vpnState ?? (() => VpnState.NotRequired);
+        _dispatcher = Dispatcher.CurrentDispatcher;
+
+        _ax = new RdpAxHost(version);
+        Host = new System.Windows.Forms.Integration.WindowsFormsHost { Child = _ax };
+        Host.SizeChanged += OnHostSizeChanged;
+
+        _retryTimer = new DispatcherTimer(DispatcherPriority.Normal, _dispatcher) { Interval = CountdownTick };
+        _retryTimer.Tick += OnRetryTick;
+
+        _resizeTimer = new DispatcherTimer(DispatcherPriority.Normal, _dispatcher) { Interval = ResizeDebounce };
+        _resizeTimer.Tick += OnResizeTick;
+    }
+
+    /// <summary>The saved connection this session serves.</summary>
+    public Connection Connection { get; }
+
+    /// <summary>
+    /// The session's visual. Available from construction and stable for the session's whole life;
+    /// the shell adds it to its container before <see cref="StartAsync"/> and removes it after
+    /// <see cref="CloseAsync"/>.
+    /// </summary>
+    public System.Windows.Forms.Integration.WindowsFormsHost Host { get; }
+
+    /// <summary>Current state. Written on the UI thread only.</summary>
+    public SessionState State { get; private set; } = SessionState.Idle;
+
+    /// <summary>
+    /// Automatic reconnection attempts consumed since the last successful connection, 0 to
+    /// <see cref="ReconnectPolicy.MaxAttempts"/>. Reset by a successful connection and by a
+    /// user-requested reconnection that is not skipping a running countdown.
+    /// </summary>
+    public int Attempt { get; private set; }
+
+    /// <summary>Time left before the scheduled retry, rounded up to the second; <c>null</c> when no
+    /// countdown is running.</summary>
+    public TimeSpan? NextRetryIn { get; private set; }
+
+    /// <summary>
+    /// What the last disconnect code meant, or <c>null</c> if the session never dropped. Deliberately
+    /// <em>not</em> cleared by a successful reconnection: a user copying diagnostics after the session
+    /// came back still wants to know what took it down.
+    /// </summary>
+    public DisconnectDescription? LastDisconnect { get; private set; }
+
+    /// <summary>
+    /// Windows' own wording for the last failure: <c>GetErrorDescription()</c> after a disconnect,
+    /// or the exception message when <c>supplyAndConnect</c> itself threw.
+    /// </summary>
+    public string? LastWindowsDescription { get; private set; }
+
+    /// <summary>Raised on every state change and on every countdown tick. UI thread.</summary>
+    public event Action? Changed;
+
+    /// <summary>Raised when the hosting window should enter (true) or leave (false) full screen.</summary>
+    public event Action<bool>? FullScreenRequested;
+
+    /// <summary>
+    /// An All monitors session the user started has logged on: the shell detaches it, if it is
+    /// still docked, and puts it in full screen across the monitors. Raised once per start.
+    /// </summary>
+    public event Action? SpanAllMonitorsRequested;
+
+    /// <summary>Set by <see cref="ArmSpan"/>, cleared when <see cref="SpanAllMonitorsRequested"/> fires.</summary>
+    private bool _spanPending;
+
+    /// <summary>
+    /// Whether the current attempt was configured for every monitor. Taken at each attempt, not read
+    /// from <see cref="Connection"/> at run time: the editor writes that same instance, and a session
+    /// negotiated for every monitor stays so until its next connection — it must neither renegotiate
+    /// as a Dynamic one nor lose its full-screen marking because the row changed meanwhile.
+    /// </summary>
+    public bool SpansAllMonitors { get; private set; }
+
+    /// <summary>The rectangle an All monitors session's remote monitors cover, in local
+    /// virtual-screen pixels; <c>null</c> before the control exists or when it cannot say.</summary>
+    public System.Drawing.Rectangle? RemoteMonitorsBounds() => _sessionHost?.ReadRemoteMonitors();
+
+    /// <summary>
+    /// Tells the session its host has moved to another window. The size subscription and the DPI both
+    /// belong to the new parent: without this, dynamic resolution keeps measuring the old window —
+    /// exactly the flaw the spike found on the alternative technique.
+    /// </summary>
+    public void AttachedTo(FrameworkElement newParent)
+    {
+        ArgumentNullException.ThrowIfNull(newParent);
+        if (_disposed)
+        {
+            return;
+        }
+
+        Host.SizeChanged -= OnHostSizeChanged;
+        Host.SizeChanged += OnHostSizeChanged;
+
+        ProbeLog.Write("session", $"'{Connection.Name}': host attached to {newParent.GetType().Name}");
+
+        if (State == SessionState.Connected && Connection.DisplayMode == DisplayMode.Dynamic && !SpansAllMonitors)
+        {
+            // Debounced: the new window may still be laying out, so let the timer measure it once
+            // it has settled rather than reading a stale ActualWidth/ActualHeight now.
+            _resizeTimer.Stop();
+            _resizeTimer.Interval = ResizeDebounce;
+            _resizeTimer.Start();
+        }
+    }
+
+    /// <summary>
+    /// Creates the control and runs the first connection attempt. <see cref="Host"/> must already be
+    /// in the visual tree, otherwise the OCX has no handle to be created on.
+    /// </summary>
+    public Task StartAsync()
+    {
+        if (_disposed || State is SessionState.Closing or SessionState.Closed)
+        {
+            return Task.CompletedTask;
+        }
+
+        if (State is SessionState.Connecting or SessionState.Connected or SessionState.Reconnecting)
+        {
+            // Already on its way; a second Connect() on a connecting control is a COM error.
+            return Task.CompletedTask;
+        }
+
+        Attempt = 0;
+        ArmSpan();
+        return RunAttemptAsync(SessionState.Connecting);
+    }
+
+    /// <summary>
+    /// Reconnects now: cancels any countdown and attempts immediately. Requesting it from
+    /// <see cref="SessionState.Failed"/> or <see cref="SessionState.Idle"/> hands the session a fresh
+    /// retry budget; requesting it during a countdown only skips the wait and keeps the budget.
+    /// </summary>
+    public Task ReconnectNowAsync()
+    {
+        if (_disposed || State is SessionState.Closing or SessionState.Closed)
+        {
+            return Task.CompletedTask;
+        }
+
+        if (_sessionHost?.IsConnected == true)
+        {
+            // Nothing to reconnect. Guard, not policy: the shell only offers the button in
+            // Failed/Idle, but Connect() on a live control is undefined behaviour.
+            ProbeLog.Write("session", $"'{Connection.Name}': reconnect ignored, already connected");
+            return Task.CompletedTask;
+        }
+
+        StopCountdown();
+
+        if (State != SessionState.Interrupted)
+        {
+            Attempt = 0;
+            // A fresh start after a failure or from Idle, not a countdown skipped: the latter is still
+            // the automatic episode, which keeps the window as it is.
+            ArmSpan();
+        }
+
+        return RunAttemptAsync(SessionState.Reconnecting);
+    }
+
+    /// <summary>
+    /// Arms the one-shot <see cref="SpanAllMonitorsRequested"/> for an All monitors connection. Only
+    /// a start the user asked for arms it — opening, <em>Reconnect</em> after a failure, connecting an
+    /// idle tab — never an automatic retry.
+    /// </summary>
+    private void ArmSpan() => _spanPending = Connection.DisplayMode == DisplayMode.AllMonitors;
+
+    /// <summary>
+    /// Gives up on the scheduled reconnection: the countdown stops and the session is declared
+    /// failed. Harmless outside a countdown.
+    /// </summary>
+    /// <remarks>
+    /// Cancelling while a retry is already in flight cannot recall it — if that attempt succeeds,
+    /// <c>OnConnected</c> still moves the session to <see cref="SessionState.Connected"/>, which is
+    /// the outcome the user wanted anyway. If it fails, the session stays failed: the drop it
+    /// reports does not start a new countdown.
+    /// </remarks>
+    public void CancelReconnect()
+    {
+        if (State is not (SessionState.Interrupted or SessionState.Reconnecting))
+        {
+            return;
+        }
+
+        StopCountdown();
+        _retriesCancelled = true;
+        ProbeLog.Write("session", $"'{Connection.Name}': reconnection cancelled by the user");
+        SetState(SessionState.Failed);
+    }
+
+    /// <summary>
+    /// Closes the session following the close protocol (<see cref="RdpSessionHost.CloseAsync"/>) and
+    /// disposes everything it owns. Terminal: the session is <see cref="SessionState.Closed"/>
+    /// afterwards and cannot be restarted.
+    /// </summary>
+    public async Task CloseAsync(TimeSpan timeout)
+    {
+        if (State is SessionState.Closed)
+        {
+            return;
+        }
+
+        StopCountdown();
+        _resizeTimer.Stop();
+        SetState(SessionState.Closing);
+
+        var host = _sessionHost;
+        if (host is not null)
+        {
+            try
+            {
+                await host.CloseAsync(timeout).ConfigureAwait(true);
+            }
+            catch (Exception ex)
+            {
+                // A control that refuses to close must not keep the tab — or the shell's
+                // close-all — hostage. Dispose below tears it down regardless.
+                ProbeLog.Write("close", $"'{Connection.Name}': CloseAsync failed: {ex.GetType().Name} 0x{ex.HResult:X8} {ex.Message}");
+            }
+        }
+
+        SetState(SessionState.Closed);
+        Dispose();
+    }
+
+    /// <summary>
+    /// Everything known about this session's last failure, as plain text for <em>Copy diagnostics</em>.
+    /// </summary>
+    public string BuildDiagnostics()
+    {
+        var lines = new List<string>
+        {
+            "Lucarne session diagnostics",
+            $"Connection          : {Connection.Name}",
+            $"Host                : {Connection.Host}:{Connection.Port}",
+            $"Display mode        : {Connection.DisplayMode}",
+            $"Control version     : {_version.Label}",
+            $"State               : {State}",
+            $"Reconnect attempts  : {Attempt} of {ReconnectPolicy.MaxAttempts}",
+        };
+
+        if (NextRetryIn is { } remaining)
+        {
+            lines.Add($"Next retry in       : {remaining.TotalSeconds:F0} s");
+        }
+
+        if (LastDisconnect is { } disconnect)
+        {
+            lines.Add($"Last disconnect code: {disconnect.Reason} ({disconnect.Category})");
+            lines.Add($"Meaning             : {disconnect.Title}");
+            lines.Add($"Extended reason     : {_lastExtendedReason}");
+        }
+        else
+        {
+            lines.Add("Last disconnect code: none recorded");
+        }
+
+        lines.Add($"Windows description : {LastWindowsDescription ?? "(none)"}");
+        lines.Add($"Logged on           : {(_loggedOn ? "yes" : "no")}");
+        lines.Add($"Requested desktop   : {_requestedWidth}x{_requestedHeight}");
+        lines.Add($"Display failures    : {_displayFailures} of {MaxDisplayAttempts}");
+        lines.Add($"SmartSizing fallback: {(_smartSizingFallback ? "active" : "not needed")}");
+        lines.Add($"Generated (UTC)     : {DateTime.UtcNow:yyyy-MM-dd HH:mm:ss}Z");
+
+        return string.Join(Environment.NewLine, lines);
+    }
+
+    /// <summary>
+    /// Runs one attempt: makes sure the control exists, then hands it to the shell's
+    /// <c>supplyAndConnect</c>. Never throws — it is awaited by <see cref="StartAsync"/> but also
+    /// started fire-and-forget by the countdown.
+    /// </summary>
+    private async Task RunAttemptAsync(SessionState phase)
+    {
+        _retriesCancelled = false;
+        SetState(phase);
+
+        // A new attempt means a new remote desktop: nothing known about the previous one carries
+        // over, and the geometry the shell is about to configure is recorded so the logon can tell
+        // whether the window moved in between.
+        _loggedOn = false;
+        _displayFailures = 0;
+        _resizeTimer.Stop();
+
+        // The surface this session actually sits in — the shell's area when docked, its own window
+        // when detached, the whole screen in full screen — and not the shell's area whatever happens.
+        // Measured against the shell's area, every retry of a full-screen session on a 5120×1440
+        // screen asked for 948×480: the remote desktop shrank and re-laid out every window in it,
+        // then grew back at logon (seen in the field, 2026-10-14/15). A host never laid out yet
+        // measures zero and is left to the caller, as before.
+        (int Width, int Height)? measured = Host.ActualWidth > 0 && Host.ActualHeight > 0 ? TargetSize() : null;
+        (_requestedWidth, _requestedHeight) = measured ?? TargetSize();
+
+        // Read in the same dispatcher turn as the shell's Configure, which reads the same instance:
+        // what the control is about to be configured with, whatever the editor writes later.
+        SpansAllMonitors = Connection.DisplayMode == DisplayMode.AllMonitors;
+
+        RdpSessionHost host;
+        try
+        {
+            host = EnsureSessionHost();
+        }
+        catch (Exception ex)
+        {
+            FailAttempt("control creation", ex);
+            return;
+        }
+
+        try
+        {
+            await _supplyAndConnect(host, measured).ConfigureAwait(true);
+        }
+        catch (Exception ex)
+        {
+            FailAttempt("connect", ex);
+        }
+    }
+
+    /// <summary>
+    /// Creates the OCX and the façade on first use. Requires <see cref="Host"/> to be in the visual
+    /// tree: <c>AxHost</c> materialises its COM object with its window handle.
+    /// </summary>
+    private RdpSessionHost EnsureSessionHost()
+    {
+        if (_sessionHost is not null)
+        {
+            return _sessionHost;
+        }
+
+        _ax.CreateControl();
+        var host = new RdpSessionHost(_ax);
+        host.Connected += OnHostConnected;
+        host.LoggedOn += OnHostLoggedOn;
+        host.Disconnected += OnHostDisconnected;
+        host.RequestGoFullScreen += () => Post(() => FullScreenRequested?.Invoke(true));
+        host.RequestLeaveFullScreen += () => Post(() => FullScreenRequested?.Invoke(false));
+        _sessionHost = host;
+        ProbeLog.Write("session", $"'{Connection.Name}': control v{_version.Label} created");
+        return host;
+    }
+
+    /// <summary>An attempt that never reached the wire: no disconnect code exists, so the exception
+    /// message is what the user gets.</summary>
+    private void FailAttempt(string stage, Exception ex)
+    {
+        // A throw out of supplyAndConnect consumes an attempt. For a retry it was already counted
+        // when the countdown was armed; for the very first connection it is counted here.
+        if (Attempt == 0)
+        {
+            Attempt = 1;
+        }
+
+        LastWindowsDescription = ex.Message;
+        StopCountdown();
+        ProbeLog.Write("session", $"'{Connection.Name}': {stage} failed: {ex.GetType().Name} 0x{ex.HResult:X8} {ex.Message}");
+        SetState(SessionState.Failed);
+    }
+
+    private void OnHostConnected() => Post(() =>
+    {
+        StopCountdown();
+        Attempt = 0;
+        SetState(SessionState.Connected);
+
+        // Deliberately no resize here. At OnConnected the remote desktop does not exist yet and
+        // UpdateSessionDisplaySettings answers E_UNEXPECTED (0x8000FFFF) — observed on every single
+        // connection during the lot-4 human probe, which is what silently degraded every Dynamic
+        // session to a stretched image. OnLoginComplete is the earliest usable moment.
+    });
+
+    /// <summary>
+    /// The remote desktop is up. This — not <c>OnConnected</c> — is where the first resize is
+    /// attempted, and only if the window has actually moved since the attempt was configured: in
+    /// the common case the session already asked for the right size at connection time.
+    /// </summary>
+    private void OnHostLoggedOn() => Post(() =>
+    {
+        _loggedOn = true;
+        _displayFailures = 0;
+
+        if (SpansAllMonitors)
+        {
+            // The layout was negotiated at connection time and never follows the window: logged
+            // here, the first moment the control knows what the server granted.
+            _sessionHost?.ReadRemoteMonitors();
+
+            // Logon rather than OnConnected: Connected is implied, and the monitors' bounding box —
+            // what the full-screen window will cover — is known by now (read here in the spike).
+            if (_spanPending)
+            {
+                _spanPending = false;
+                SpanAllMonitorsRequested?.Invoke();
+            }
+
+            return;
+        }
+
+        if (_smartSizingFallback || Connection.DisplayMode != DisplayMode.Dynamic)
+        {
+            return;
+        }
+
+        var (width, height) = TargetSize();
+        if (width == _requestedWidth && height == _requestedHeight)
+        {
+            return;
+        }
+
+        ProbeLog.Write("display", $"'{Connection.Name}': window is {width}x{height}, session was asked for {_requestedWidth}x{_requestedHeight}; updating");
+        ApplyDisplaySize();
+    });
+
+    private void OnHostDisconnected(RdpDisconnectInfo info) => Post(() => HandleDisconnected(info));
+
+    private void HandleDisconnected(RdpDisconnectInfo info)
+    {
+        var description = DisconnectReason.Describe(info.Reason);
+        LastDisconnect = description;
+        _lastExtendedReason = info.ExtendedReason;
+        LastWindowsDescription = info.Description;
+        _loggedOn = false;
+        _resizeTimer.Stop();
+
+        // Closed as well as Closing: this handler is posted, so CloseAsync's await may already have
+        // resumed and moved the session on by the time it runs.
+        if (State is SessionState.Closing or SessionState.Closed)
+        {
+            SetState(SessionState.Closed);
+            return;
+        }
+
+        if (!description.IsError)
+        {
+            // Codes 0–3: the session ended on purpose. The tab stays, with Reconnect.
+            StopCountdown();
+            ProbeLog.Write("session", $"'{Connection.Name}': disconnected normally (code {info.Reason} — {description.Title})");
+            SetState(SessionState.Idle);
+            return;
+        }
+
+        if (_retriesCancelled)
+        {
+            // The attempt the user cancelled has just failed: it must not restart the countdown
+            // they stopped.
+            StopCountdown();
+            ProbeLog.Write("session", $"'{Connection.Name}': cancelled attempt ended (code {info.Reason} — {description.Title}); no retry");
+            SetState(SessionState.Failed);
+            return;
+        }
+
+        var decision = ReconnectGate.Decide(info.Reason, Attempt, _vpnState());
+
+        if (decision.Verdict == ReconnectVerdict.VpnDown)
+        {
+            StopForVpn(info.Reason, description.Title);
+            return;
+        }
+
+        if (decision.Verdict == ReconnectVerdict.Retry)
+        {
+            Attempt++;
+            _retryDueUtc = DateTime.UtcNow + decision.Delay;
+            NextRetryIn = decision.Delay;
+            ProbeLog.Write("session", $"'{Connection.Name}': dropped (code {info.Reason} — {description.Title}); attempt {Attempt}/{ReconnectPolicy.MaxAttempts} in {decision.Delay.TotalSeconds:F0} s");
+            SetState(SessionState.Interrupted);
+            _retryTimer.Start();
+            return;
+        }
+
+        StopCountdown();
+        ProbeLog.Write("session", $"'{Connection.Name}': failed (code {info.Reason} — {description.Title}, extended {info.ExtendedReason})");
+        SetState(SessionState.Failed);
+    }
+
+    private void OnRetryTick(object? sender, EventArgs e)
+    {
+        var remaining = _retryDueUtc - DateTime.UtcNow;
+        if (remaining > CountdownTolerance)
+        {
+            // Rounded up so the countdown shows "1 s" rather than "0 s" for its last second.
+            NextRetryIn = TimeSpan.FromSeconds(Math.Ceiling(remaining.TotalSeconds));
+            Changed?.Invoke();
+            return;
+        }
+
+        StopCountdown();
+
+        // Asked again here, not only at the drop: a countdown can run for a minute, and the tunnel
+        // can go down inside it. An attempt that cannot reach its host is worth less than saying so.
+        if (_vpnState() == VpnState.NotConnected)
+        {
+            StopForVpn(LastDisconnect?.Reason ?? 0, LastDisconnect?.Title ?? "");
+            return;
+        }
+
+        // Fire and forget: RunAttemptAsync swallows everything and reports through the state.
+        _ = RunAttemptAsync(SessionState.Reconnecting);
+    }
+
+    /// <summary>
+    /// Ends the retries because the tunnel this connection needs is not up. The disconnect code
+    /// stays what it was — that is what actually happened — and the sentence beside it names the
+    /// profile, which is the only part the user can act on. Nothing is dialled: the Reconnect
+    /// button goes through <c>VpnGate</c>, which asks first.
+    /// </summary>
+    private void StopForVpn(int reason, string title)
+    {
+        StopCountdown();
+        LastWindowsDescription = Text.Of(Strings.Session_VpnDropped, Connection.VpnProfile?.Trim() ?? "");
+        ProbeLog.Write("session", $"'{Connection.Name}': dropped (code {reason} — {title}) and the VPN profile '{Connection.VpnProfile}' is not up; retries stopped");
+        SetState(SessionState.Failed);
+    }
+
+    private void StopCountdown()
+    {
+        _retryTimer.Stop();
+        NextRetryIn = null;
+    }
+
+    /// <summary>
+    /// Dynamic display mode only: every resize restarts a 300 ms debounce, so a window dragged
+    /// across the screen produces one resolution change instead of a hundred.
+    /// </summary>
+    private void OnHostSizeChanged(object sender, SizeChangedEventArgs e)
+    {
+        if (_smartSizingFallback || !_loggedOn || Connection.DisplayMode != DisplayMode.Dynamic || SpansAllMonitors)
+        {
+            return;
+        }
+
+        // The interval is reassigned because the same timer also serves the post-failure retry.
+        _resizeTimer.Stop();
+        _resizeTimer.Interval = ResizeDebounce;
+        _resizeTimer.Start();
+    }
+
+    private void OnResizeTick(object? sender, EventArgs e)
+    {
+        _resizeTimer.Stop();
+        ApplyDisplaySize();
+    }
+
+    /// <summary>
+    /// Asks the live session to match the hosting surface. A refusal buys one retry
+    /// <see cref="DisplayRetryDelay"/> later on the same timer; only a second refusal switches the
+    /// session to SmartSizing for good, since a control that has settled and still refuses will
+    /// refuse every drag of the window afterwards.
+    /// </summary>
+    private void ApplyDisplaySize()
+    {
+        if (_disposed || _smartSizingFallback || _sessionHost is null)
+        {
+            return;
+        }
+
+        if (!_loggedOn || Connection.DisplayMode != DisplayMode.Dynamic || SpansAllMonitors || State != SessionState.Connected)
+        {
+            return;
+        }
+
+        var (width, height) = TargetSize();
+        uint scalePercent = (uint)Math.Max(100, Math.Round(VisualTreeHelper.GetDpi(Host).DpiScaleX * 100));
+
+        if (_sessionHost.UpdateDisplay(width, height, scalePercent))
+        {
+            _displayFailures = 0;
+            _requestedWidth = width;
+            _requestedHeight = height;
+            return;
+        }
+
+        _displayFailures++;
+        if (_displayFailures < MaxDisplayAttempts)
+        {
+            ProbeLog.Write("display", $"'{Connection.Name}': display update retry in {DisplayRetryDelay.TotalSeconds:F0} s");
+            _resizeTimer.Stop();
+            _resizeTimer.Interval = DisplayRetryDelay;
+            _resizeTimer.Start();
+            return;
+        }
+
+        _smartSizingFallback = true;
+        try
+        {
+            _sessionHost.EnableSmartSizingFallback();
+            ProbeLog.Write("display", $"'{Connection.Name}': fallback to SmartSizing after {_displayFailures} failures");
+        }
+        catch (Exception ex)
+        {
+            // Setting SmartSizing is a COM call like any other: it may refuse too. The session then
+            // simply keeps the resolution it negotiated at connection time.
+            ProbeLog.Write("display", $"'{Connection.Name}': SmartSizing fallback failed: {ex.GetType().Name} 0x{ex.HResult:X8} {ex.Message}");
+        }
+    }
+
+    /// <summary>
+    /// Remote size this session should ask for: the hosting surface in physical pixels, floored at
+    /// <see cref="MinimumRemoteWidth"/>×<see cref="MinimumRemoteHeight"/> (as <c>ShellWindow</c>
+    /// already does for the initial size, so a pane dragged almost shut does not become a 120×40
+    /// desktop), capped at <see cref="MaximumRemoteSide"/>, and rounded <em>down</em> to even
+    /// numbers on both sides.
+    /// </summary>
+    /// <remarks>
+    /// The even rounding is empirical, not quoted: the refusal seen during the probe asked for
+    /// 640×609, and an odd side is the one unusual thing about that request. Even sides cost
+    /// nothing; the retry above covers the case where they were not the cause.
+    /// </remarks>
+    private (int Width, int Height) TargetSize()
+    {
+        var dpi = VisualTreeHelper.GetDpi(Host);
+        return (EvenSide(Host.ActualWidth * dpi.DpiScaleX, MinimumRemoteWidth),
+                EvenSide(Host.ActualHeight * dpi.DpiScaleY, MinimumRemoteHeight));
+    }
+
+    /// <summary>Clamps one side to the allowed range and rounds it down to an even number.</summary>
+    private static int EvenSide(double physicalPixels, int minimum)
+    {
+        // A surface that has never been laid out measures NaN, which survives Math.Clamp and lands
+        // on int.MinValue through the cast: it is worth the floor, not a negative desktop.
+        int value = double.IsFinite(physicalPixels) ? (int)Math.Floor(physicalPixels) : minimum;
+        value = Math.Clamp(value, minimum, MaximumRemoteSide);
+        return value - (value % 2);
+    }
+
+    /// <summary>Queues <paramref name="action"/> on the session's dispatcher; see the threading note
+    /// on the class.</summary>
+    private void Post(Action action) => _dispatcher.BeginInvoke(() =>
+    {
+        if (_disposed)
+        {
+            return;
+        }
+
+        action();
+    });
+
+    /// <summary>Moves to <paramref name="state"/> and notifies. Notification is unconditional — the
+    /// countdown and the attempt counter change without the state doing so — logging is not.</summary>
+    private void SetState(SessionState state)
+    {
+        if (State != state)
+        {
+            State = state;
+            ProbeLog.Write("session", $"'{Connection.Name}' → {state}");
+        }
+
+        Changed?.Invoke();
+    }
+
+    public void Dispose()
+    {
+        if (_disposed)
+        {
+            return;
+        }
+
+        _disposed = true;
+
+        _retryTimer.Stop();
+        _retryTimer.Tick -= OnRetryTick;
+        _resizeTimer.Stop();
+        _resizeTimer.Tick -= OnResizeTick;
+        Host.SizeChanged -= OnHostSizeChanged;
+
+        if (_sessionHost is { } host)
+        {
+            host.Connected -= OnHostConnected;
+            host.LoggedOn -= OnHostLoggedOn;
+            host.Disconnected -= OnHostDisconnected;
+            host.Dispose();
+            _sessionHost = null;
+        }
+
+        try
+        {
+            // Detach before disposing: the shell removes Host from its container on its own
+            // schedule, and an emptied WindowsFormsHost left in the tree is harmless whereas one
+            // holding a disposed child is not.
+            Host.Child = null;
+            if (SpansAllMonitors)
+            {
+                DisposeControlLater();
+                return;
+            }
+
+            _ax.Dispose();
+        }
+        catch (Exception ex)
+        {
+            ProbeLog.Write("session", $"'{Connection.Name}': control disposal failed: {ex.GetType().Name} 0x{ex.HResult:X8} {ex.Message}");
+        }
+    }
+
+    /// <summary>
+    /// Destroys an All monitors session's control a second after the session is over, once the
+    /// application is idle, instead of straight away.
+    /// </summary>
+    /// <remarks>
+    /// Destroyed in the dispatcher turn that follows <c>OnDisconnected</c>, a control negotiated for
+    /// every monitor sometimes never returned from its own teardown, and Lucarne stopped
+    /// responding (measured 2026-10-29: two hangs out of three closes from full screen, the last log
+    /// line "destroying the control"). Deferred by one second, five closes out of five went through,
+    /// the control taking 25-34 ms to go. Why the control needs that time is not documented; the
+    /// session and its window are gone already, only the parked control waits.
+    /// </remarks>
+    private void DisposeControlLater()
+    {
+        var control = _ax;
+        var name = Connection.Name;
+        _ = Host.Dispatcher.BeginInvoke(DispatcherPriority.ApplicationIdle, async () =>
+        {
+            await Task.Delay(MultimonDisposeDelay).ConfigureAwait(true);
+            try
+            {
+                control.Dispose();
+            }
+            catch (Exception ex)
+            {
+                ProbeLog.Write("session", $"'{name}': control disposal failed: {ex.GetType().Name} 0x{ex.HResult:X8} {ex.Message}");
+            }
+        });
+    }
+}

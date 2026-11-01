@@ -1,0 +1,594 @@
+using System.Windows;
+using System.Windows.Input;
+using System.Windows.Interop;
+using CommunityToolkit.Mvvm.Input;
+using Lucarne.App.Controls;
+using Lucarne.App.Interop;
+using Lucarne.App.Rdp;
+using Lucarne.App.Resources;
+using Lucarne.App.Services;
+using Lucarne.App.ViewModels;
+using Lucarne.Core.Settings;
+using Wpf.Ui.Appearance;
+
+namespace Lucarne.App.Views;
+
+/// <summary>
+/// A window that hosts exactly one detached session and none of the application chrome: a 32 px
+/// strip that doubles as the caption, that session's InfoBar, and the area the shell drops the
+/// session's <c>WindowsFormsHost</c> into.
+///
+/// The window owns no protocol. It raises <see cref="ReattachRequested"/>,
+/// <see cref="CloseRequested"/> and — while it is being dragged by its caption —
+/// <see cref="CaptionDragMoved"/> / <see cref="CaptionDragEnded"/>, then waits:
+/// <c>SessionsViewModel</c> is the only thing allowed to move a host between containers, the close protocol
+/// close protocol belongs to the shell, and so does the decision that a drag ended over the tab
+/// strip. What the window does own is its own geometry — full screen and
+/// <see cref="CurrentPlacement"/>.
+/// </summary>
+/// <remarks>
+/// Internal because the constructor takes a <see cref="SessionTabViewModel"/>, which is itself
+/// internal (it exposes <see cref="RdpSession"/>); the XAML carries <c>x:ClassModifier="internal"</c>
+/// so the generated half matches.
+/// </remarks>
+// Wpf.Ui.Controls.* is qualified on purpose: UseWindowsForms puts System.Windows.Forms in scope
+// through implicit usings, and a bare `using Wpf.Ui.Controls;` would make Button, TextBox and
+// friends ambiguous across the app.
+internal sealed partial class SessionWindow : Wpf.Ui.Controls.FluentWindow
+{
+    private readonly SessionTabViewModel _tab;
+
+    /// <summary>All the open sessions. This window shows exactly one of them and never touches the
+    /// rest; it is held only so the full-screen bar can list the others and offer to go there —
+    /// where "there" means is decided by the shell, not here.</summary>
+    private readonly SessionsViewModel _sessions;
+
+    /// <summary>What full screen replaced, so leaving it can put all three back.</summary>
+    private WindowState _restoreState = WindowState.Normal;
+    private WindowStyle _restoreStyle = WindowStyle.SingleBorderWindow;
+    private Rect _restoreBounds = Rect.Empty;
+
+    /// <summary>What the host area looked like before full screen took its margin away.</summary>
+    private Thickness _restoreHostMargin;
+    private CornerRadius _restoreHostCorner;
+
+    private bool _isFullScreen;
+
+    /// <summary>The connection bar of the current full-screen episode, or <c>null</c> outside one.
+    /// Created when full screen is entered and closed when it ends, so it never exists over a window
+    /// that is not full screen.</summary>
+    private FullScreenBar? _bar;
+
+    /// <summary>Set by <see cref="AllowClose"/>. Until then every close is cancelled and answered
+    /// with <see cref="CloseRequested"/>.</summary>
+    private bool _allowClose;
+
+    /// <summary>True once the cross has been answered: the session actions stop being offered while
+    /// the shell runs the close protocol, exactly as the shell's own session bar does.</summary>
+    private bool _closeRequested;
+
+    /// <summary>True for the whole of a caption drag, i.e. while <c>DragMove</c>'s modal move loop
+    /// runs. It is what turns an ordinary <c>LocationChanged</c> into
+    /// <see cref="CaptionDragMoved"/>.</summary>
+    private bool _captionDragging;
+
+    public SessionWindow(SessionTabViewModel tab, SessionsViewModel sessions)
+    {
+        ArgumentNullException.ThrowIfNull(tab);
+        ArgumentNullException.ThrowIfNull(sessions);
+
+        _tab = tab;
+        _sessions = sessions;
+        InitializeComponent();
+        SystemThemeWatcher.Watch(this);
+
+        // Before anything binds: the caption, the status dot and the window's own Title all read
+        // from the tab.
+        DataContext = tab;
+
+        // These reach this window only while WPF owns the keyboard; the remote session swallows them
+        // otherwise, which is what ShortcutInterceptor is for — it routes the same three to whichever
+        // window is active. The two never double-fire: the hook swallows what it handles. No
+        // canExecute guard as the shell's bindings carry: this window holds no text input at all.
+        InputBindings.Add(new KeyBinding(new RelayCommand(ToggleFullScreen), Key.F11, ModifierKeys.None));
+        InputBindings.Add(new KeyBinding(new RelayCommand(() => ReattachRequested?.Invoke(this)),
+            Key.D, ModifierKeys.Control | ModifierKeys.Shift));
+        InputBindings.Add(new KeyBinding(new RelayCommand(() => Close()), Key.W, ModifierKeys.Control));
+
+        _tab.Changed += OnTabChanged;
+        _tab.Session.FullScreenRequested += OnFullScreenRequested;
+
+        Closing += OnClosing;
+
+        // Last line of defence for the connection bar. Every ordinary path already takes it down —
+        // leaving full screen, the session dropping out of Connected, OnClosing — and it is owned by
+        // this window on top of that; this catches whatever none of the three did.
+        Closed += (_, _) => EndBar();
+
+        RefreshCaption();
+        RefreshInfoBar();
+    }
+
+    /// <summary>The one session this window shows.</summary>
+    public SessionTabViewModel Tab => _tab;
+
+    /// <summary>Where the shell puts the session's <c>WindowsFormsHost</c>, and the element the
+    /// session measures for its dynamic resolution.</summary>
+    public System.Windows.Controls.Decorator HostArea => HostAreaBorder;
+
+    /// <summary>Raised by the <em>Reattach</em> button. The shell moves the host back into the
+    /// docked container; the window itself does nothing.</summary>
+    public event Action<SessionWindow>? ReattachRequested;
+
+    /// <summary>Raised by the cross — and by any other close — until <see cref="AllowClose"/> has
+    /// been called. The shell runs the close protocol and calls it when the session is done.</summary>
+    public event Action<SessionWindow>? CloseRequested;
+
+    /// <summary>Another session was picked from the full-screen bar. Relayed untouched: this window
+    /// keeps showing what it was showing, and the shell brings the named session forward wherever it
+    /// happens to live.</summary>
+    public event Action<SessionTabViewModel>? SessionRequested;
+
+    /// <summary>
+    /// The window moved while the user is dragging it by its caption strip. Raised on every step of
+    /// the drag, with <see cref="Window.Left"/> and <see cref="Window.Top"/> already updated, so the
+    /// shell can decide whether the window is over its tab strip and light the drop band.
+    /// </summary>
+    public event Action<SessionWindow>? CaptionDragMoved;
+
+    /// <summary>
+    /// The caption drag is over — the button came up, wherever the window ended. Raised exactly once
+    /// per <see cref="CaptionDragMoved"/> sequence, including when the drag moved nothing, so the
+    /// shell always gets to clear what the drag put on screen.
+    /// </summary>
+    public event Action<SessionWindow>? CaptionDragEnded;
+
+    /// <summary>True while the window covers the screen it sits on.</summary>
+    public bool IsFullScreen => _isFullScreen;
+
+    /// <summary>Lets the next close through. Called by the shell once the close protocol has run;
+    /// the window then closes on its own or on the caller's <c>Close()</c>.</summary>
+    public void AllowClose()
+    {
+        _allowClose = true;
+    }
+
+    /// <summary>Enters full screen, or leaves it.</summary>
+    public void ToggleFullScreen() => SetFullScreen(!_isFullScreen);
+
+    /// <summary>
+    /// Where the window is, for <c>settings.json</c>. In full screen the remembered restore bounds
+    /// are reported rather than the screen-sized frame, so reopening the connection without full
+    /// screen finds a window of a usable size.
+    /// </summary>
+    public DetachedWindowPlacement CurrentPlacement()
+    {
+        var bounds = _isFullScreen ? _restoreBounds : NormalBounds();
+        if (bounds is not { Width: > 0, Height: > 0 })
+        {
+            bounds = NormalBounds();
+        }
+
+        return new DetachedWindowPlacement(bounds.Left, bounds.Top, bounds.Width, bounds.Height, _isFullScreen);
+    }
+
+    /// <summary>The window's un-maximized frame. <c>RestoreBounds</c>, not Left/Top/Width/Height:
+    /// those describe the maximized frame, and remembering them would reopen a window that fills
+    /// the screen with no way back — the same rule the shell follows for its own geometry.</summary>
+    private Rect NormalBounds() =>
+        WindowState == WindowState.Normal ? new Rect(Left, Top, Width, Height) : RestoreBounds;
+
+    // ---------------------------------------------------------------- full screen
+
+    /// <summary>
+    /// Full screen is a borderless maximized window. WPF maximizes onto the screen the
+    /// window currently sits on, which is what lets two detached windows fill two monitors at the
+    /// same time — no multimon flag, no explicit screen arithmetic.
+    ///
+    /// The 32 px strip, the InfoBar and the host area's margin all go: full screen means a remote
+    /// desktop edge to edge, which is the whole point of the gesture. The host area's size never
+    /// changes while it lasts — chrome that came and went with the pointer <em>inside</em> this
+    /// window would resize the host, and in dynamic display mode that renegotiates the remote
+    /// resolution because the pointer brushed the top of the screen. What the pointer does bring in
+    /// is <see cref="FullScreenBar"/>: a window of its own, floating over the session, which this
+    /// window's layout never hears about.
+    ///
+    /// Full screen is therefore bound to the connected state: it is only entered from it, and
+    /// <see cref="LeaveFullScreenUnlessConnected"/> ends it once the session has left it for good —
+    /// an automatic retry keeps it, with the connection bar held open to say so. That
+    /// is what puts the strip and the InfoBar back exactly when they have something to report — the
+    /// reason, <em>Reconnect</em>, <em>Copy diagnostics</em> — instead of leaving the user in front
+    /// of a black screen with no explanation. F11 and Ctrl+Alt+Pause remain the manual way out at
+    /// any time, alongside the control's own <c>RequestLeaveFullScreen</c>.
+    /// </summary>
+    private void SetFullScreen(bool on)
+    {
+        if (on == _isFullScreen)
+        {
+            return;
+        }
+
+        // Only a live session is worth showing edge to edge, and it is the state leaving Connected
+        // that ends full screen: entering from anywhere else would produce a chromeless window no
+        // state change would ever take out again.
+        if (on && _tab.State != SessionState.Connected)
+        {
+            ProbeLog.Write("session", $"'{_tab.Title}': full screen refused, the session is {_tab.State}");
+            return;
+        }
+
+        if (on)
+        {
+            _restoreState = WindowState;
+            _restoreStyle = WindowStyle;
+            _restoreBounds = NormalBounds();
+            _restoreHostMargin = HostAreaBorder.Margin;
+            _restoreHostCorner = HostAreaBorder.CornerRadius;
+            _isFullScreen = true;
+
+            // Normal first: a style change on a window that is already maximized is applied to a
+            // frame Windows has stopped recomputing, and the caption comes back as a black band.
+            WindowState = WindowState.Normal;
+            WindowStyle = WindowStyle.None;
+            if (SpansAllMonitors)
+            {
+                CoverRemoteMonitors();
+            }
+            else
+            {
+                WindowState = WindowState.Maximized;
+            }
+
+            HostAreaBorder.Margin = new Thickness(0);
+            HostAreaBorder.CornerRadius = new CornerRadius(0);
+            ShowChrome(false);
+            StartBar();
+        }
+        else
+        {
+            _isFullScreen = false;
+            if (_markedFullScreen)
+            {
+                // Before the style comes back: the taskbar must not stay under a window that is
+                // about to be an ordinary one.
+                SpanningFullScreen.MarkFullScreen(new WindowInteropHelper(this).Handle, false);
+                _markedFullScreen = false;
+            }
+
+            EndBar();
+            ShowChrome(true);
+            HostAreaBorder.Margin = _restoreHostMargin;
+            HostAreaBorder.CornerRadius = _restoreHostCorner;
+
+            WindowStyle = _restoreStyle;
+            WindowState = _restoreState;
+            if (_restoreState == WindowState.Normal && _restoreBounds is { Width: > 0, Height: > 0 })
+            {
+                Left = _restoreBounds.Left;
+                Top = _restoreBounds.Top;
+                Width = _restoreBounds.Width;
+                Height = _restoreBounds.Height;
+            }
+        }
+
+        ProbeLog.Write("session", $"'{_tab.Title}': full screen {(_isFullScreen ? "entered" : "left")}");
+    }
+
+    /// <summary>An All monitors session: its full screen covers every monitor the server granted
+    /// instead of maximizing on the one the window sits on.</summary>
+    private bool SpansAllMonitors => _tab.Session.SpansAllMonitors;
+
+    /// <summary>Whether this window told the Shell it is full screen. Kept rather than deduced from
+    /// the mode on the way out, so the marking is always taken back.</summary>
+    private bool _markedFullScreen;
+
+    /// <summary>
+    /// Covers the remote monitors' bounding box, or the local virtual screen when the control cannot
+    /// say — a box the server shrank (one monitor granted out of two) is covered as granted. Then
+    /// marks the window full screen for the Shell and activates it, since the taskbar only goes under
+    /// an <em>active</em> full-screen window.
+    /// </summary>
+    private void CoverRemoteMonitors()
+    {
+        var area = _tab.Session.RemoteMonitorsBounds() ?? System.Windows.Forms.SystemInformation.VirtualScreen;
+        nint handle = new WindowInteropHelper(this).Handle;
+        SpanningFullScreen.Cover(handle, area);
+        SpanningFullScreen.MarkFullScreen(handle, true);
+        _markedFullScreen = true;
+        Activate();
+        ProbeLog.Write("display", $"'{_tab.Title}': full screen covers {area}");
+    }
+
+    /// <summary>Shows or hides the caption strip and the InfoBar together. Collapsed rather than
+    /// hidden: a hidden strip would still reserve its 32 px, which is exactly what full screen is
+    /// meant to give back.</summary>
+    private void ShowChrome(bool visible) =>
+        Chrome.Visibility = visible ? Visibility.Visible : Visibility.Collapsed;
+
+    /// <summary>
+    /// Puts this session's connection bar up for the full-screen episode that is starting. A window
+    /// of its own — see <see cref="FullScreenBar"/> for why it cannot be part of this one — owned by
+    /// this window, so it can never be left floating over the desktop with nothing to dismiss it.
+    /// </summary>
+    private void StartBar()
+    {
+        // One bar per episode: the previous one, if any, was closed when its full screen ended.
+        _bar = new FullScreenBar(this, _tab, _sessions);
+        _bar.ReattachRequested += OnBarReattachRequested;
+        _bar.LeaveFullScreenRequested += () => SetFullScreen(false);
+        _bar.CloseSessionRequested += () => Close();
+        _bar.SessionRequested += tab => SessionRequested?.Invoke(tab);
+        _bar.SetLive(!_closeRequested);
+        _bar.Begin();
+    }
+
+    /// <summary>Takes the connection bar down and closes it. Called from every end of full screen,
+    /// from <see cref="OnClosing"/> and from <c>Closed</c>; <see cref="FullScreenBar.Dismiss"/> is
+    /// idempotent, so running twice costs nothing.</summary>
+    private void EndBar()
+    {
+        _bar?.Dismiss();
+        _bar = null;
+    }
+
+    /// <summary><em>Reattach</em> from the bar. Refused while the close protocol runs, the same rule
+    /// the caption strip applies by disabling its own button.</summary>
+    private void OnBarReattachRequested()
+    {
+        if (_closeRequested)
+        {
+            return;
+        }
+
+        ReattachRequested?.Invoke(this);
+    }
+
+    /// <summary>The remote session asked for full screen itself — <c>ContainerHandledFullScreen</c>
+    /// makes that the container's decision, and the container is this window.</summary>
+    private void OnFullScreenRequested(bool enter) => SetFullScreen(enter);
+
+    // ---------------------------------------------------------------- caption
+
+    /// <summary>
+    /// Drags the window by its strip — or, on a double-click, reattaches: the strip is where a
+    /// window is offered back to the tab strip by hand, and the double-click is that same offer
+    /// without the travel, mirroring the double-click that tears a tab out. Refused on a maximized
+    /// window, which has nothing to drag, and <c>DragMove</c> throws when the button is no longer
+    /// down.
+    /// </summary>
+    /// <remarks>
+    /// <c>DragMove</c> runs Windows' own modal move loop and only returns once the button is up, so
+    /// this method <em>is</em> the whole gesture: <see cref="CaptionDragMoved"/> is raised from
+    /// <see cref="OnLocationChanged"/> for as long as the loop runs, and
+    /// <see cref="CaptionDragEnded"/> exactly where it ends. That is a far steadier signal than
+    /// <c>Deactivated</c> or a <c>MouseLeftButtonUp</c> the move loop never delivers.
+    /// </remarks>
+    private void OnTitleBarMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+    {
+        if (e.ClickCount > 1)
+        {
+            // Same guard as the bar's Reattach and as the caption's own button: a session on its way
+            // out through the close protocol must not be moved back into the shell mid-close.
+            e.Handled = true;
+            if (!_closeRequested)
+            {
+                ReattachRequested?.Invoke(this);
+            }
+
+            return;
+        }
+
+        if (WindowState != WindowState.Normal)
+        {
+            return;
+        }
+
+        _captionDragging = true;
+        try
+        {
+            DragMove();
+        }
+        catch (InvalidOperationException)
+        {
+            // The button was released between the event and this call. Nothing to drag, nothing to
+            // report: the window simply stays where it is.
+        }
+        finally
+        {
+            _captionDragging = false;
+        }
+
+        // Raised even when DragMove refused: the drag ended either way, and whoever is listening has
+        // something on screen to take down.
+        CaptionDragEnded?.Invoke(this);
+    }
+
+    /// <summary>Every move of the window; only the ones that belong to a caption drag are passed on.
+    /// A programmatic move — full screen, or the shell placing the window — is not a gesture and must
+    /// not look like the user offering the session back.</summary>
+    protected override void OnLocationChanged(EventArgs e)
+    {
+        base.OnLocationChanged(e);
+        if (_captionDragging)
+        {
+            CaptionDragMoved?.Invoke(this);
+        }
+    }
+
+    private void OnReattachClick(object sender, RoutedEventArgs e) => ReattachRequested?.Invoke(this);
+
+    private void OnFullScreenClick(object sender, RoutedEventArgs e) => ToggleFullScreen();
+
+    /// <summary>The cross. It goes through <see cref="OnClosing"/> like every other close, so the
+    /// protocol runs exactly once wherever the close came from.</summary>
+    private void OnCloseClick(object sender, RoutedEventArgs e) => Close();
+
+    private void OnReconnectClick(object sender, RoutedEventArgs e) => ReconnectSession();
+
+    /// <summary><em>Reconnect</em>. <c>async void</c> is the only shape an awaiting handler can
+    /// take, hence the fully guarded body.</summary>
+    private async void ReconnectSession()
+    {
+        if (_tab.IsReconnectPending)
+        {
+            return;
+        }
+
+        try
+        {
+            // The same gate the shell uses, over this window: a detached session needs its tunnel
+            // exactly as much, and until now nothing here ever looked. Pending across the gate
+            // only, as in the shell — which can reconnect this same session from its list.
+            bool ready;
+            _tab.IsReconnectPending = true;
+            try
+            {
+                ready = await VpnGate.EnsureReadyAsync(this, _tab.Session.Connection,
+                    (severity, title, message) => StatusBar.Show(severity, title, message));
+            }
+            finally
+            {
+                _tab.IsReconnectPending = false;
+            }
+
+            if (!ready)
+            {
+                return;
+            }
+
+            await _tab.Session.ReconnectNowAsync();
+        }
+        catch (Exception ex)
+        {
+            // RdpSession swallows attempt failures itself; this only covers the unexpected.
+            ProbeLog.Write("session", $"Reconnect failed: {ex.GetType().Name} 0x{ex.HResult:X8} {ex.Message}");
+        }
+    }
+
+    private void OnCancelRetryClick(object sender, RoutedEventArgs e) => _tab.Session.CancelReconnect();
+
+    /// <summary>Copies this session's diagnostics. The clipboard is owned by whatever currently
+    /// holds it, so <c>SetText</c> is allowed to fail — and must not cost the window.</summary>
+    private void OnCopyDiagnosticsClick(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            // Qualified: UseWindowsForms puts System.Windows.Forms.Clipboard in scope too.
+            System.Windows.Clipboard.SetText(_tab.Session.BuildDiagnostics());
+            StatusBar.Show(Wpf.Ui.Controls.InfoBarSeverity.Success, Strings.Shell_DiagnosticsCopiedTitle,
+                Text.Of(Strings.Shell_DiagnosticsCopiedMessage, _tab.Title));
+        }
+        catch (Exception ex)
+        {
+            ProbeLog.Write("session", $"Clipboard.SetText failed: {ex.GetType().Name} 0x{ex.HResult:X8} {ex.Message}");
+            StatusBar.Show(Wpf.Ui.Controls.InfoBarSeverity.Warning, Strings.Shell_DiagnosticsNotCopiedTitle,
+                Text.Of(Strings.Shell_DiagnosticsNotCopiedMessage, ex.GetType().Name));
+        }
+    }
+
+    // ---------------------------------------------------------------- state
+
+    private void OnTabChanged(SessionTabViewModel tab)
+    {
+        // First: the two refreshes below write into a caption and an InfoBar that full screen has
+        // collapsed, and this is what puts them back on screen.
+        LeaveFullScreenUnlessConnected();
+        RefreshCaption();
+        RefreshInfoBar();
+    }
+
+    /// <summary>
+    /// Ends full screen once the session has stopped being connected for good — a failure, a
+    /// normal disconnect, a close. What was hidden is exactly what the user now needs: the reason in
+    /// the InfoBar, and <em>Reconnect</em> / <em>Copy diagnostics</em> in the strip.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// An automatic retry (<see cref="SessionState.Interrupted"/>, <see cref="SessionState.Reconnecting"/>)
+    /// keeps full screen, and the connection bar says what is happening instead. Leaving it there
+    /// shrank the window back to its normal bounds, so the retry reconnected the remote desktop at
+    /// that small size and Windows re-laid out every remote window into it, before full screen grew
+    /// it back — seen in the field on a 5120×1440 screen, several times a day (2026-10-14/15).
+    /// Keeping the window as it was is what lets the retry ask for the size the desktop already has.
+    /// </para>
+    /// <para>
+    /// Driven by <see cref="SessionTabViewModel.Changed"/>, which this window already subscribes to —
+    /// no polling. Coming back after a failure is deliberately not automatic: a session that is
+    /// reconnected by hand stays in the window it was given, and F11 puts it back edge to edge.
+    /// </para>
+    /// </remarks>
+    private void LeaveFullScreenUnlessConnected()
+    {
+        if (_isFullScreen && _tab.State is not (SessionState.Connected or SessionState.Interrupted or SessionState.Reconnecting))
+        {
+            SetFullScreen(false);
+        }
+    }
+
+    /// <summary><em>Reconnect</em> is offered exactly where a new attempt is legal (Failed, or Idle
+    /// after a normal disconnect) and <em>Cancel</em> exactly where a retry is pending, so the two
+    /// are never both on screen — the same rule as the shell's session bar. <em>Reattach</em> goes
+    /// with them once the cross has been answered: the shell is running the close protocol over this session, and
+    /// that protocol must not have its control moved to another window underneath it.</summary>
+    private void RefreshCaption()
+    {
+        bool live = !_closeRequested;
+        ReattachButton.IsEnabled = live;
+        ReconnectButton.Visibility = live && _tab.State is SessionState.Failed or SessionState.Idle
+            ? Visibility.Visible
+            : Visibility.Collapsed;
+        CancelRetryButton.Visibility = live && _tab.State is SessionState.Interrupted or SessionState.Reconnecting
+            ? Visibility.Visible
+            : Visibility.Collapsed;
+        DiagnosticsButton.IsEnabled = live;
+        _bar?.SetLive(live);
+    }
+
+    /// <summary>Reports the session's state in the one place Lucarne reports anything. Wording,
+    /// severity rule and resource keys are shared with the shell: a session says the same
+    /// thing whether it is docked or detached.</summary>
+    private void RefreshInfoBar() => SessionStatusPresenter.Report(StatusBar, _tab);
+
+    // ---------------------------------------------------------------- shutdown
+
+    /// <summary>
+    /// Closing this window means closing the session it holds, and that protocol is the shell's
+    ///. So the first pass cancels and asks: the shell disconnects the session, calls
+    /// <see cref="AllowClose"/> and closes the window, and this handler then lets it go. Same
+    /// two-pass shape the shell uses for itself.
+    /// </summary>
+    private void OnClosing(object? sender, System.ComponentModel.CancelEventArgs e)
+    {
+        if (_allowClose)
+        {
+            EndBar();
+            _tab.Changed -= OnTabChanged;
+            _tab.Session.FullScreenRequested -= OnFullScreenRequested;
+
+            // The watcher keeps every watched window in a static list of its own; without this,
+            // each detach/reattach — the feature's main gesture — leaves an entry behind holding
+            // this window, its tab and the session behind it.
+            SystemThemeWatcher.UnWatch(this);
+            return;
+        }
+
+        e.Cancel = true;
+        if (_closeRequested)
+        {
+            // The cross can be clicked again while the shell disconnects; asking twice would start
+            // a second protocol over the same session.
+            return;
+        }
+
+        _closeRequested = true;
+        RefreshCaption();
+        ProbeLog.Write("session", $"'{_tab.Title}': detached window close requested");
+
+        // Posted, not raised here: when the session is not connected the close protocol completes
+        // synchronously and closes this window from inside this very handler, which WPF refuses
+        // (InvalidOperationException, "Window is closing") and which left an empty window behind
+        // in the field. Same reason the shell defers its own second pass. Let this pass unwind.
+        // (discarded: the returned DispatcherOperation is deliberately not awaited)
+        _ = Dispatcher.BeginInvoke(() => CloseRequested?.Invoke(this));
+    }
+}
