@@ -81,7 +81,10 @@ public sealed class LegacyDataFolderTests : IDisposable
         var legacyDb = new SqliteDatabase(Path.Combine(Legacy, "connections.db"));
         using (var connection = legacyDb.Open())
         {
-            connection.Cmd("CREATE TABLE t (v TEXT); INSERT INTO t VALUES ('kept');").ExecuteNonQuery();
+            // Disposed: collected undisposed, it would keep the file open past the connection's close
+            // (see SqliteDatabaseTests), and the move would find the folder locked.
+            using var insert = connection.Cmd("CREATE TABLE t (v TEXT); INSERT INTO t VALUES ('kept');");
+            insert.ExecuteNonQuery();
         }
 
         Assert.Equal(MigrationResult.Moved, LegacyDataFolder.Migrate(Legacy, New));
