@@ -1,0 +1,21 @@
+<Application x:Class="Lucarne.App.App"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
+             StartupUri="Views/ShellWindow.xaml">
+    <Application.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <ui:ThemesDictionary Theme="Dark" />
+                <ui:ControlsDictionary />
+                <!-- After the two WPF-UI dictionaries, and not before: every token in this sheet
+                     is a DynamicResource onto a WPF-UI theme colour, and a lookup that finds
+                     nothing fails silently — the brush simply stays transparent. -->
+                <ResourceDictionary Source="pack://application:,,,/Lucarne;component/Resources/Theme.xaml" />
+                <!-- After ControlsDictionary: WPF-UI ships no PasswordBox style, and merging last
+                     keeps ours the winning implicit style whatever the theme brings. -->
+                <ResourceDictionary Source="pack://application:,,,/Lucarne;component/Resources/PasswordBox.xaml" />
+            </ResourceDictionary.MergedDictionaries>
+        </ResourceDictionary>
+    </Application.Resources>
+</Application>

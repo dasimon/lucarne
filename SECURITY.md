@@ -2,23 +2,23 @@
 
 ## Supported versions
 
-RemoteDeck is pre-1.0. There are no maintained release branches: only the current
+Lucarne is pre-1.0. There are no maintained release branches: only the current
 `main` receives fixes. Report against the latest commit on `main`.
 
 ## How credentials are stored
 
 Credentials live in the SQLite database at
-`%APPDATA%\RemoteDeck\connections.db`. Each credential row holds a `UserName`, an
+`%APPDATA%\Lucarne\connections.db`. Each credential row holds a `UserName`, an
 encrypted secret blob, and 32 bytes of entropy.
 
 - The secret is encrypted with **Windows DPAPI**, `DataProtectionScope.CurrentUser`
   (`ProtectedData.Protect`). The key material is derived from your Windows user
-  profile and is held by Windows, not by RemoteDeck.
+  profile and is held by Windows, not by Lucarne.
 - A **32-byte entropy value** is drawn from `RandomNumberGenerator` and passed to
   DPAPI as the optional entropy. It is regenerated on **every save**, and stored
   next to the blob. It does not replace DPAPI, it adds to it: two credentials
   sharing the same password produce different blobs.
-- **There is no encryption key in the binary.** RemoteDeck ships no secret of its
+- **There is no encryption key in the binary.** Lucarne ships no secret of its
   own, so a stolen copy of the executable grants nothing.
 - **The secret never exists as a managed string.** On save it is read from the
   WPF `PasswordBox` as a `SecureString`, converted to a native `BSTR`, and handed
@@ -28,8 +28,8 @@ encrypted secret blob, and 32 bytes of entropy.
   with `CryptographicOperations.ZeroMemory` or `Array.Clear`.
   `ICredentialVault` exposes no member that accepts or returns a `string` for a
   secret — the API is `Seal(Credential, nint)` and `UseSecret(Credential, Action<nint>)`.
-  Source: `src/RemoteDeck.Core/Security/`.
-- Log files (`%APPDATA%\RemoteDeck\logs\`) never hold a secret. They do hold connection
+  Source: `src/Lucarne.Core/Security/`.
+- Log files (`%APPDATA%\Lucarne\logs\`) never hold a secret. They do hold connection
   names, host names, user names and UPNs, and RDP error codes with their text — the things a
   support conversation needs. The file rolls to `probe-l0.log.1` past 1 MB, so at most two exist.
 
@@ -37,7 +37,7 @@ encrypted secret blob, and 32 bytes of entropy.
 
 The Remote Desktop control verifies the server's certificate according to its
 `AuthenticationLevel`, and **left to itself that level is 0** — no authentication of the server,
-measured on 2026-09-05. RemoteDeck therefore sets it on every connection: 2 by default, "attempt
+measured on 2026-09-05. Lucarne therefore sets it on every connection: 2 by default, "attempt
 authentication and prompt on failure", the same as `mstsc.exe`; 1, "required", or 0, "none", only
 when the user chose so in the editor. NLA (CredSSP) is always on.
 
@@ -51,25 +51,25 @@ that). The database used to carry an `AcceptedCertThumbprint` column reserved fo
 ever read or wrote; schema V6 drops it. The control's own warning dialog is the only
 server-identity check, and a user who clicks through it has accepted the server for that session.
 
-## Secrets RemoteDeck deliberately does not hold
+## Secrets Lucarne deliberately does not hold
 
 Two things a user might reasonably expect to find in the vault are not there, and the
 reasoning is the same in both cases: Windows already holds them, and a second copy would
 be a second thing to lose.
 
 - **A web-account (Entra) token.** A connection with *Use web account* authenticates
-  through the Windows account broker; the token never passes through RemoteDeck. What
+  through the Windows account broker; the token never passes through Lucarne. What
   the connection may carry is a UPN — an account *name*, handed to the control as a hint.
   A credential attached to such a connection is ignored on connect: no domain and no
   password reach the control.
-- **A VPN profile's password.** RemoteDeck stores the profile's *name*, nothing else.
+- **A VPN profile's password.** Lucarne stores the profile's *name*, nothing else.
   Raising a tunnel calls `RasDial` with the credential the user saved in the Windows
   profile — and Windows does not hand that password out. `RasGetCredentials` returns a
   *handle* to it (sixteen asterisks, per its documentation), which `RasDial` exchanges
-  for the real secret internally. The handle is all that ever exists in RemoteDeck's
+  for the real secret internally. The handle is all that ever exists in Lucarne's
   memory; the buffer holding it is zeroed before and after use, and the probe log records
   outcomes and RAS codes only. A profile with **no** saved credential is not dialled at
-  all, because dialling would mean asking for a password RemoteDeck has promised never to
+  all, because dialling would mean asking for a password Lucarne has promised never to
   want.
 
 ## Configuration files
@@ -99,8 +99,8 @@ owner made in the editor.
 These limits are stated rather than left implicit.
 
 - **Malware running inside your unlocked Windows session.** Code running as you
-  can call `ProtectedData.Unprotect` exactly as RemoteDeck does. No local
-  credential store protects against this — not RemoteDeck's, not any other.
+  can call `ProtectedData.Unprotect` exactly as Lucarne does. No local
+  credential store protects against this — not Lucarne's, not any other.
 - **Local administrators**, who can act on your profile and your processes.
 - **Access to the process memory.** While a session is being opened, the secret is
   in memory in cleartext. The zeroing above shortens that window, it does not
@@ -110,7 +110,7 @@ These limits are stated rather than left implicit.
   over, the secret is under Microsoft's `mstscax` control, not ours.
 - **A VPN profile whose credential Windows has saved can be dialled by anything
   running as you** — that is what saving it means, and it is true of `rasdial`, of the
-  network flyout, and of RemoteDeck alike. RemoteDeck adds no capability here: it asks
+  network flyout, and of Lucarne alike. Lucarne adds no capability here: it asks
   Windows to use a credential Windows already agreed to reuse, and only when the user
   answers a dialog or has ticked *Raise it without asking* on that connection. Even then it
   dials only on a connect, a reconnect or a workspace the user started, never from the
@@ -120,7 +120,7 @@ These limits are stated rather than left implicit.
 
 ## Other notes
 
-**Low-level keyboard hook.** RemoteDeck installs a process-wide low-level keyboard
+**Low-level keyboard hook.** Lucarne installs a process-wide low-level keyboard
 hook (`SetWindowsHookEx` with `WH_KEYBOARD_LL`). This is required, not optional:
 when the Remote Desktop ActiveX control has focus it consumes keystrokes before
 they reach the application's message loop, so thread-scoped mechanisms never see
@@ -131,16 +131,16 @@ foreground window, it reads the virtual-key code and decides whether that one ke
 is an application shortcut to swallow. What it does not do: it does not record,
 store, buffer, or transmit keystrokes; keys that are not application shortcuts are
 passed on untouched via `CallNextHookEx`. Source:
-`src/RemoteDeck.App/Rdp/ShortcutInterceptor.cs`.
+`src/Lucarne.App/Rdp/ShortcutInterceptor.cs`.
 
-A security policy (EDR, GPO) may forbid installing such a hook. RemoteDeck then
+A security policy (EDR, GPO) may forbid installing such a hook. Lucarne then
 runs without application shortcuts while the remote session has focus; the control's
 own `Ctrl+Alt+Left` / `Ctrl+Alt+Right` still returns focus to the application.
 
 ## Reporting a vulnerability
 
 Use **GitHub private vulnerability reporting** on the repository:
-<https://github.com/dasimon/remotedeck/security/advisories/new>.
+<https://github.com/dasimon/lucarne/security/advisories/new>.
 
 Please do **not** open a public issue for a security bug. Include the affected
 commit, what you observed, and how to reproduce it. This is a spare-time project:

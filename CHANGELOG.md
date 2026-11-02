@@ -1,13 +1,36 @@
 # Changelog
 
-All notable changes to RemoteDeck are recorded here. Dates are ISO 8601.
+All notable changes to Lucarne (formerly RemoteDeck) are recorded here. Dates are ISO 8601.
 
-## Unreleased
+## 1.0.0 — 2026-11-01
+
+RemoteDeck is now Lucarne, carries its data and updates over by itself, and downloads in half the size.
+
+### RemoteDeck is now Lucarne
+
+- **Why**: another product already goes by the name RemoteDeck. Lucarne is not affiliated with
+  remotedeckapp.com, and never was.
+- **What moves**: the executable is `Lucarne.exe`, the data folder `%APPDATA%\Lucarne` (the
+  update downloads `%LOCALAPPDATA%\Lucarne`), and the repository
+  [github.com/dasimon/lucarne](https://github.com/dasimon/lucarne); GitHub redirects the old
+  address.
+- **What is automatic**: at its first start, Lucarne moves the whole `%APPDATA%\RemoteDeck`
+  folder — connections, saved credentials, settings, logs — to `%APPDATA%\Lucarne`. Nothing is
+  copied or merged: if a `%APPDATA%\Lucarne` folder already exists, both are left as they are and
+  the log says so; if a RemoteDeck still running holds the old folder, Lucarne uses it for that
+  session and moves it at a later start. The old update downloads in `%LOCALAPPDATA%\RemoteDeck`
+  are deleted.
+- **RemoteDeck 0.9.0 updates itself to Lucarne** from its banner, as for any release: each
+  release also carries the executable as `RemoteDeck.exe`, with its line in `SHA256SUMS`. The
+  updated executable keeps its file name, `RemoteDeck.exe`, so shortcuts keep working.
+- **Once Lucarne has started, an older RemoteDeck.exe left elsewhere** (a shortcut to another
+  copy, a file saved to *Downloads*) opens with an empty list, and what is entered in it stays
+  with RemoteDeck: delete it and use Lucarne.
 
 ### Smaller download
 
-- **RemoteDeck.exe is now about 71 MB instead of 159 MB**: the single file compresses what it
-  bundles. Start-up time is unchanged; RemoteDeck uses about 80 MB more memory, because the
+- **Lucarne.exe is now about 71 MB instead of 159 MB**: the single file compresses what it
+  bundles. Start-up time is unchanged; Lucarne uses about 80 MB more memory, because the
   compressed parts are unpacked into memory instead of being read from the file. The built-in
   update downloads less in the same proportion.
 

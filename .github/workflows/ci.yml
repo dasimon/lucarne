@@ -27,11 +27,11 @@ jobs:
       - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
         with:
           dotnet-version: 10.0.x
-      - run: dotnet restore RemoteDeck.sln
-      - run: dotnet build RemoteDeck.sln --configuration Release --no-restore
+      - run: dotnet restore Lucarne.sln
+      - run: dotnet build Lucarne.sln --configuration Release --no-restore
       # Not `dotnet test`: an xUnit v3 project is a Microsoft.Testing.Platform application, i.e. an
       # executable that runs its own tests, and running it is the documented way. `dotnet test`'s MTP
       # integration is also broken on this toolchain (SDK 10.0.400 + MTP 2.3.3): it passes --server
       # with no value and the test app rejects it, exit code 5. There is one test project, so this
       # single line replaces the solution-wide invocation exactly.
-      - run: dotnet run --project tests/RemoteDeck.Core.Tests --configuration Release --no-build
+      - run: dotnet run --project tests/Lucarne.Core.Tests --configuration Release --no-build

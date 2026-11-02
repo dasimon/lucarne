@@ -1,0 +1,308 @@
+<UserControl x:Class="Lucarne.App.Views.SessionTabStrip"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
+             xmlns:res="clr-namespace:Lucarne.App.Resources"
+             xmlns:controls="clr-namespace:Lucarne.App.Controls">
+    <UserControl.Resources>
+        <BooleanToVisibilityConverter x:Key="BoolToVisibility" />
+        <controls:GroupBrushConverter x:Key="GroupBrush" />
+
+        <!-- The 8 px status dot. The view-model publishes a resource *key* (StatusBrushKey) rather
+             than a Brush, and the mapping key -> brush happens here through DynamicResource: a
+             brush frozen into the view-model would not follow a light/dark switch, and DynamicResource
+             cannot take a Binding. Four triggers, four keys — SessionTabViewModel owns the constants,
+             and it still owns them: only the brush each key resolves to moved to the token sheet, so
+             the dot now shares its three colours with the connection list's status pills. -->
+        <Style x:Key="StatusDotStyle" TargetType="Ellipse">
+            <Setter Property="Width" Value="8" />
+            <Setter Property="Height" Value="8" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+            <Setter Property="Margin" Value="0,0,8,0" />
+            <Setter Property="Fill" Value="{DynamicResource RdTextMuted}" />
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding StatusBrushKey}" Value="SystemFillColorSuccessBrush">
+                    <Setter Property="Fill" Value="{DynamicResource RdOk}" />
+                </DataTrigger>
+                <DataTrigger Binding="{Binding StatusBrushKey}" Value="SystemFillColorCautionBrush">
+                    <Setter Property="Fill" Value="{DynamicResource RdWarn}" />
+                </DataTrigger>
+                <DataTrigger Binding="{Binding StatusBrushKey}" Value="SystemFillColorCriticalBrush">
+                    <Setter Property="Fill" Value="{DynamicResource RdBad}" />
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+
+        <!-- The tab's outer shell: its height, the 4 px of air before the next one, and nothing
+             visible at all. Everything that can be seen is a layer inside it, so the states stack
+             and fade independently.
+
+             Background is Transparent rather than unset: a null Background is not hit-testable, and
+             the whole tab must answer the click, the middle-click and the drag. It is also what makes
+             IsMouseOver on this Border the single source of "the pointer is on this tab", read both
+             by the hover layer below and by the cross's own style. -->
+        <Style x:Key="TabRootStyle" TargetType="Border">
+            <Setter Property="Height" Value="{StaticResource RdTabHeight}" />
+            <Setter Property="Margin" Value="0,0,4,0" />
+            <Setter Property="Background" Value="Transparent" />
+            <Style.Triggers>
+                <!-- A detached session keeps its tab in SessionsViewModel.Tabs — Move indexes that
+                     collection, and the palette and the close-all pass both count it — so the strip
+                     hides the tab instead of removing it, and the numbering never shifts. Collapsed
+                     rather than Hidden: a hidden tab would still take its 34 px of strip. Either way
+                     it stops being hit-testable, so no reorder drag can land on it. -->
+                <DataTrigger Binding="{Binding IsDetached}" Value="True">
+                    <Setter Property="Visibility" Value="Collapsed" />
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+
+        <!-- The cross: shown on the active tab and on the one under the pointer, so a strip at rest
+             stays quiet. AncestorType=Border resolves to the tab root, the nearest Border above —
+             the state layers are never the cross's ancestors, only its siblings' siblings, so this
+             still names the one Border that spans the whole tab.
+
+             BasedOn is required, not decoration: an explicit Style replaces the implicit one the
+             WPF-UI dictionary supplies, and without it the button falls back to the plain WPF
+             template — Appearance stops meaning anything and the Icon is never rendered, leaving a
+             blank rectangle where the cross should be. -->
+        <Style x:Key="TabCloseStyle" TargetType="ui:Button" BasedOn="{StaticResource {x:Type ui:Button}}">
+            <Setter Property="Width" Value="22" />
+            <Setter Property="Height" Value="22" />
+            <Setter Property="Padding" Value="0" />
+            <Setter Property="Margin" Value="8,0,0,0" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+            <Setter Property="Appearance" Value="Transparent" />
+            <Setter Property="Visibility" Value="Hidden" />
+            <!-- Refused while the window is shutting down: a close started then would race the
+                 close-all pass over the very same tab. The ItemsControl's DataContext is the
+                 SessionsViewModel; the template's own is the tab. -->
+            <Setter Property="IsEnabled"
+                    Value="{Binding DataContext.CanCloseTabs, RelativeSource={RelativeSource AncestorType=ItemsControl}}" />
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding IsActive}" Value="True">
+                    <Setter Property="Visibility" Value="Visible" />
+                </DataTrigger>
+                <DataTrigger Binding="{Binding IsMouseOver, RelativeSource={RelativeSource AncestorType=Border}}" Value="True">
+                    <Setter Property="Visibility" Value="Visible" />
+                </DataTrigger>
+                <!-- And on the tab the keyboard is on: Tab moves to it, then to its cross. -->
+                <DataTrigger Binding="{Binding IsKeyboardFocusWithin, RelativeSource={RelativeSource AncestorType=Border}}" Value="True">
+                    <Setter Property="Visibility" Value="Visible" />
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+    </UserControl.Resources>
+
+    <Grid>
+        <!-- The strip's own line, and the reason the active tab can interrupt it. A Border as tall as
+             a tab carrying nothing but a bottom edge puts that edge exactly under the tabs' feet —
+             not at the bottom of the strip, which is a different place as soon as the horizontal
+             scroll bar appears and makes the strip taller than a tab. Declared first, so every tab
+             paints over it: an inactive tab is transparent and lets the line through, the active one
+             covers its own stretch of it. Not hit-testable — the tabs own the gestures.
+
+             Only while a tab is actually drawn under it: being a tab tall, it would otherwise floor
+             the whole control at 34 px and underline tabs that are not there — an empty band on
+             every cold start. HasDockedTabs, not Tabs.Count: a detached tab stays in the collection
+             and this strip collapses it, so a strip whose every tab is detached draws nothing and
+             gets no line either. Collapsed when the strip has no view-model yet, for the same
+             reason: nothing is drawn. -->
+        <Border x:Name="StripBaseline"
+                Visibility="{Binding HasDockedTabs, Converter={StaticResource BoolToVisibility}, FallbackValue=Collapsed}"
+                Height="{StaticResource RdTabHeight}"
+                VerticalAlignment="Top"
+                IsHitTestVisible="False"
+                BorderThickness="0,0,0,1"
+                BorderBrush="{DynamicResource RdBorder}" />
+
+        <!-- Horizontal scroll only: more tabs than the window is wide must not make the strip taller. -->
+        <ScrollViewer HorizontalScrollBarVisibility="Auto"
+                      VerticalScrollBarVisibility="Disabled"
+                      PanningMode="HorizontalOnly">
+            <ItemsControl x:Name="TabItems">
+                <ItemsControl.ItemsPanel>
+                    <ItemsPanelTemplate>
+                        <StackPanel Orientation="Horizontal" />
+                    </ItemsPanelTemplate>
+                </ItemsControl.ItemsPanel>
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate>
+                        <Border x:Name="TabRoot"
+                                Style="{StaticResource TabRootStyle}"
+                                ToolTip="{Binding Subtitle}"
+                                MouseLeftButtonDown="OnTabLeftButtonDown"
+                                MouseMove="OnTabMouseMove"
+                                MouseLeftButtonUp="OnTabLeftButtonUp"
+                                MouseDown="OnTabMouseDown"
+                                Focusable="True"
+                                AutomationProperties.Name="{Binding Title}"
+                                KeyDown="OnTabKeyDown">
+                            <!-- Right-click does NOT activate the tab, deliberately, and this is the
+                                 one place where the strip parts with the connection pane's rule that
+                                 a right-click selects the row first. Activating a tab switches the
+                                 session on screen, which is a far heavier thing than moving a
+                                 selection — and acting on a background tab without leaving the one
+                                 you are watching is the whole point of the menu.
+
+                                 The menu's DataContext is the tab, inherited through the logical
+                                 tree from this Border, so the IsEnabled bindings read the tab's own
+                                 rules and Close reaches the same command the cross uses. -->
+                            <Border.ContextMenu>
+                                <ContextMenu>
+                                    <MenuItem Header="{x:Static res:Strings.Tab_MenuFullScreen}"
+                                              FontWeight="SemiBold"
+                                              IsEnabled="{Binding CanFullScreen}"
+                                              Click="OnMenuFullScreen" />
+                                    <MenuItem Header="{x:Static res:Strings.Tab_MenuDetach}"
+                                              InputGestureText="{x:Static res:Strings.Palette_ShortcutDetach}"
+                                              IsEnabled="{Binding CanDetach}"
+                                              Click="OnMenuDetach" />
+                                    <Separator />
+                                    <MenuItem Header="{x:Static res:Strings.Tab_MenuReconnect}"
+                                              IsEnabled="{Binding CanReconnect}"
+                                              Click="OnMenuReconnect" />
+                                    <MenuItem Header="{x:Static res:Strings.Tab_MenuDiagnostics}"
+                                              Click="OnMenuDiagnostics" />
+                                    <Separator />
+                                    <MenuItem Header="{x:Static res:Strings.Tab_MenuClose}"
+                                              InputGestureText="{x:Static res:Strings.Palette_ShortcutCloseSession}"
+                                              Command="{Binding CloseCommand}" />
+                                </ContextMenu>
+                            </Border.ContextMenu>
+                            <!-- Three layers and the content, stacked in the order they may cover one
+                                 another. Nothing here changes size or position between states: a strip
+                                 walked with Ctrl+Tab never shifts under the eye (plan, constraint 8). -->
+                            <Grid>
+                                <!-- Hover stops one pixel short of the bottom, so a tab merely under
+                                     the pointer tints without ever reaching — and therefore without
+                                     ever breaking — the strip's line. Only the active tab does that. -->
+                                <Border x:Name="Hover"
+                                        Margin="0,0,0,1"
+                                        CornerRadius="6,6,0,0"
+                                        Background="{DynamicResource RdSurface2}"
+                                        Opacity="0" />
+
+                                <!-- The active tab, anchored to the session area below it: its ground
+                                     is that area's ground, it is enclosed on three sides, and it has
+                                     no bottom edge at all — its background runs under where that edge
+                                     would be and paints out the strip's line for its own width. That
+                                     missing side is the whole effect: the tab and the area beneath it
+                                     read as one surface, with the line parting around them.
+
+                                     Square at the bottom for the same reason: a rounded bottom corner
+                                     would leave the line showing through the notch. -->
+                                <Border x:Name="Anchor"
+                                        Visibility="Collapsed"
+                                        CornerRadius="6,6,0,0"
+                                        Background="{DynamicResource RdSurface0}"
+                                        BorderThickness="1,1,1,0"
+                                        BorderBrush="{DynamicResource RdBorder}" />
+
+                                <!-- The 2 px accent fillet, just inside the top edge. Inset by the
+                                     corner radius on both sides so it never runs into the curve, which
+                                     is what a full-width square bar would do. This is the tab's one
+                                     accent, and the strip's: nothing else here is accented (plan,
+                                     constraint 4). -->
+                                <Border x:Name="Fillet"
+                                        Visibility="Collapsed"
+                                        Height="2"
+                                        Margin="6,1,6,0"
+                                        VerticalAlignment="Top"
+                                        Background="{DynamicResource RdAccent}" />
+
+                                <StackPanel Orientation="Horizontal"
+                                            Margin="10,0,6,0"
+                                            VerticalAlignment="Center">
+                                    <Ellipse Style="{StaticResource StatusDotStyle}" />
+                                    <!-- The group, drawn as in the pane's headers: a square is a group,
+                                         a circle is a state. No group, no square, and no width taken. -->
+                                    <Rectangle Width="8" Height="8" RadiusX="2" RadiusY="2" Margin="0,0,6,0" VerticalAlignment="Center"
+                                               Fill="{Binding GroupName, Converter={StaticResource GroupBrush}}">
+                                        <Rectangle.Style>
+                                            <Style TargetType="Rectangle">
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding GroupName, Converter={StaticResource GroupBrush}}" Value="{x:Null}">
+                                                        <Setter Property="Visibility" Value="Collapsed" />
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </Rectangle.Style>
+                                    </Rectangle>
+                                    <TextBlock x:Name="TabTitle"
+                                               Text="{Binding Title}"
+                                               VerticalAlignment="Center"
+                                               MaxWidth="180"
+                                               Foreground="{DynamicResource RdTextMuted}"
+                                               TextTrimming="CharacterEllipsis" />
+                                    <ui:Button Style="{StaticResource TabCloseStyle}"
+                                               Icon="{ui:SymbolIcon Dismiss16}"
+                                               Command="{Binding CloseCommand}"
+                                               ToolTip="{x:Static res:Strings.Session_CloseToolTip}"
+                                               AutomationProperties.Name="{x:Static res:Strings.Session_CloseToolTip}" />
+                                </StackPanel>
+                            </Grid>
+                        </Border>
+                        <DataTemplate.Triggers>
+                            <!-- Hover is the only animated state, and only its background moves: 150 ms of
+                                 fade is what keeps a pointer sweeping across the strip from flickering.
+                                 Activation stays instant — Ctrl+Tab must show where it landed, not fade
+                                 towards it. Animations are held rather than set, so nothing else may write
+                                 this Opacity: it is Hover's alone.
+
+                                 SourceName rather than a bare Property: a trigger in a DataTemplate has to
+                                 name the element it watches, and the one that spans the whole tab is the
+                                 root Border. -->
+                            <Trigger SourceName="TabRoot" Property="IsMouseOver" Value="True">
+                                <Trigger.EnterActions>
+                                    <BeginStoryboard>
+                                        <Storyboard>
+                                            <DoubleAnimation Storyboard.TargetName="Hover"
+                                                             Storyboard.TargetProperty="Opacity"
+                                                             To="1" Duration="{StaticResource RdMotion}" />
+                                        </Storyboard>
+                                    </BeginStoryboard>
+                                </Trigger.EnterActions>
+                                <Trigger.ExitActions>
+                                    <BeginStoryboard>
+                                        <Storyboard>
+                                            <DoubleAnimation Storyboard.TargetName="Hover"
+                                                             Storyboard.TargetProperty="Opacity"
+                                                             To="0" Duration="{StaticResource RdMotion}" />
+                                        </Storyboard>
+                                    </BeginStoryboard>
+                                </Trigger.ExitActions>
+                            </Trigger>
+
+                            <!-- Active: the anchor and its fillet appear, and the title comes forward out
+                                 of RdTextMuted. Inactive tabs recede by the token and not by Opacity — 0.7
+                                 of white and 0.7 of black do not recede by the same amount, and the strip
+                                 has to read the same in both themes. The anchor is declared after Hover,
+                                 so an active tab under the pointer stays the session's own surface: it is
+                                 already where the pointer would take you. -->
+                            <DataTrigger Binding="{Binding IsActive}" Value="True">
+                                <Setter TargetName="Anchor" Property="Visibility" Value="Visible" />
+                                <Setter TargetName="Fillet" Property="Visibility" Value="Visible" />
+                                <Setter TargetName="TabTitle" Property="Foreground" Value="{DynamicResource RdText}" />
+                            </DataTrigger>
+                        </DataTemplate.Triggers>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+        </ScrollViewer>
+
+        <!-- Where a detached window dropped on the strip would land. Shown by ShowDropHint while
+             one is being dragged over it, and never hit-testable: the window being dragged is the
+             one under the pointer, not this. MinHeight keeps the band visible even when every tab
+             is detached and the strip below it has measured to nothing. -->
+        <Border x:Name="DropHint"
+                Visibility="Collapsed"
+                IsHitTestVisible="False"
+                MinHeight="{StaticResource RdTabHeight}"
+                CornerRadius="{StaticResource RdRadius}"
+                BorderThickness="2"
+                BorderBrush="{DynamicResource RdAccent}"
+                Background="{DynamicResource RdSurface2}"
+                Opacity="0.6" />
+    </Grid>
+</UserControl>

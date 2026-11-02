@@ -1,0 +1,222 @@
+using Microsoft.Data.Sqlite;
+using Lucarne.Core.Data;
+
+namespace Lucarne.Core.Tests.Data;
+
+public sealed class SchemaMigratorTests
+{
+    [Fact]
+    public void EnsureCreated_creates_file_and_current_schema()
+    {
+        using var tmp = new TempDatabase();
+
+        tmp.Db.EnsureCreated();
+
+        Assert.True(File.Exists(tmp.Path));
+        using var c = tmp.Db.Open();
+        Assert.Equal(SchemaMigrator.CurrentVersion, SchemaMigrator.GetVersion(c));
+        var tables = new List<string>();
+        using var r = c.Cmd("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name").ExecuteReader();
+        while (r.Read()) tables.Add(r.GetString(0));
+        Assert.Contains("Credential", tables);
+        Assert.Contains("Connection", tables);
+        Assert.Contains("SchemaVersion", tables);
+    }
+
+    [Fact]
+    public void EnsureCreated_is_idempotent()
+    {
+        using var tmp = new TempDatabase();
+        tmp.Db.EnsureCreated();
+
+        tmp.Db.EnsureCreated();
+
+        using var c = tmp.Db.Open();
+        Assert.Equal(SchemaMigrator.CurrentVersion, SchemaMigrator.GetVersion(c));
+        Assert.Equal((long)SchemaMigrator.CurrentVersion, c.Cmd("SELECT COUNT(*) FROM SchemaVersion").ExecuteScalar());
+    }
+
+    [Fact]
+    public void Open_enables_foreign_keys_and_wal()
+    {
+        using var tmp = new TempDatabase();
+        tmp.Db.EnsureCreated();
+
+        using var c = tmp.Db.Open();
+
+        Assert.Equal(1L, c.Cmd("PRAGMA foreign_keys").ExecuteScalar());
+        Assert.Equal("wal", c.Cmd("PRAGMA journal_mode").ExecuteScalar());
+    }
+
+    [Fact]
+    public void Migrate_refuses_a_newer_database()
+    {
+        using var tmp = new TempDatabase();
+        tmp.Db.EnsureCreated();
+        using (var c = tmp.Db.Open())
+        {
+            c.Cmd("INSERT INTO SchemaVersion(Version, AppliedUtc) VALUES (999, '2099-01-01T00:00:00.0000000Z')").ExecuteNonQuery();
+        }
+
+        var ex = Assert.Throws<SchemaTooNewException>(() => tmp.Db.EnsureCreated());
+
+        Assert.Equal(999, ex.Found);
+        Assert.Equal(SchemaMigrator.CurrentVersion, ex.Supported);
+    }
+
+    [Fact]
+    public void GetVersion_is_zero_on_empty_database()
+    {
+        using var tmp = new TempDatabase();
+        using var c = tmp.Db.Open();
+
+        Assert.Equal(0, SchemaMigrator.GetVersion(c));
+    }
+
+    [Fact]
+    public void EnsureCreated_creates_the_workspace_tables()
+    {
+        using var tmp = new TempDatabase();
+
+        tmp.Db.EnsureCreated();
+
+        using var c = tmp.Db.Open();
+        var tables = new List<string>();
+        using var r = c.Cmd("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name").ExecuteReader();
+        while (r.Read()) tables.Add(r.GetString(0));
+        Assert.Contains("Workspace", tables);
+        Assert.Contains("WorkspaceItem", tables);
+    }
+
+    [Fact]
+    public void Migrate_upgrades_a_populated_v1_database_without_losing_rows()
+    {
+        using var tmp = new TempDatabase();
+
+        // A V1 database as it exists on a user's machine: the V1 script alone, stamped version 1,
+        // with one connection in it.
+        using (var c = tmp.Db.Open())
+        {
+            c.Cmd("CREATE TABLE SchemaVersion (Version INTEGER NOT NULL, AppliedUtc TEXT NOT NULL)").ExecuteNonQuery();
+            c.Cmd("""
+                CREATE TABLE Credential (
+                  Id INTEGER PRIMARY KEY, Label TEXT NOT NULL UNIQUE, Domain TEXT NULL, UserName TEXT NOT NULL,
+                  SecretBlob BLOB NOT NULL, Entropy BLOB NOT NULL, ModifiedUtc TEXT NOT NULL);
+                CREATE TABLE Connection (
+                  Id INTEGER PRIMARY KEY, Name TEXT NOT NULL, Host TEXT NOT NULL, Port INTEGER NOT NULL DEFAULT 3389,
+                  GroupName TEXT NOT NULL DEFAULT '', CredentialId INTEGER NULL REFERENCES Credential(Id) ON DELETE SET NULL,
+                  IsFavorite INTEGER NOT NULL DEFAULT 0, DisplayMode INTEGER NOT NULL DEFAULT 0,
+                  FixedWidth INTEGER NULL, FixedHeight INTEGER NULL, RedirectClipboard INTEGER NOT NULL DEFAULT 1,
+                  RedirectDrives INTEGER NOT NULL DEFAULT 0, RedirectPrinters INTEGER NOT NULL DEFAULT 0,
+                  RedirectAudio INTEGER NOT NULL DEFAULT 0, AdminSession INTEGER NOT NULL DEFAULT 0,
+                  UseWebAccount INTEGER NOT NULL DEFAULT 0, AuthenticationLevel INTEGER NULL,
+                  AcceptedCertThumbprint TEXT NULL, Notes TEXT NOT NULL DEFAULT '',
+                  LastConnectedUtc TEXT NULL, CreatedUtc TEXT NOT NULL);
+                """).ExecuteNonQuery();
+            c.Cmd("INSERT INTO SchemaVersion(Version, AppliedUtc) VALUES (1, '2026-01-01T00:00:00.0000000Z')").ExecuteNonQuery();
+            c.Cmd("INSERT INTO Connection(Name, Host, CreatedUtc) VALUES ('SQL', 'contososql00001', '2026-01-01T00:00:00.0000000Z')").ExecuteNonQuery();
+        }
+
+        tmp.Db.EnsureCreated();
+
+        using var after = tmp.Db.Open();
+        Assert.Equal(SchemaMigrator.CurrentVersion, SchemaMigrator.GetVersion(after));
+        Assert.Equal(1L, after.Cmd("SELECT COUNT(*) FROM Connection").ExecuteScalar());
+        Assert.Equal(0L, after.Cmd("SELECT COUNT(*) FROM WorkspaceItem").ExecuteScalar());
+    }
+
+    [Fact]
+    public void V3_adds_VpnProfile_to_an_existing_populated_database()
+    {
+        // The ALTER runs over rows that already exist, so the column has to arrive nullable and
+        // leave every one of them saying "no VPN required".
+        using var tmp = new TempDatabase();
+        tmp.Db.EnsureCreated();
+        using var c = tmp.Db.Open();
+        c.Cmd("INSERT INTO Connection(Name, Host, CreatedUtc) VALUES ('SQL', 'contososql00001', '2026-01-01T00:00:00.0000000Z')").ExecuteNonQuery();
+
+        using var r = c.Cmd("SELECT VpnProfile FROM Connection").ExecuteReader();
+
+        Assert.True(r.Read());
+        Assert.True(r.IsDBNull(0));
+    }
+
+    [Fact]
+    public void V4_adds_WebAccountUpn_to_an_existing_populated_database()
+    {
+        // Same shape as V3: nullable, added with ALTER, and every existing row keeps meaning
+        // "no account hint", which is what the control got from them until now.
+        using var tmp = new TempDatabase();
+        tmp.Db.EnsureCreated();
+        using var c = tmp.Db.Open();
+        c.Cmd("INSERT INTO Connection(Name, Host, CreatedUtc) VALUES ('WIN02', 'contoso-win02', '2026-01-01T00:00:00.0000000Z')").ExecuteNonQuery();
+
+        using var r = c.Cmd("SELECT WebAccountUpn FROM Connection").ExecuteReader();
+
+        Assert.True(r.Read());
+        Assert.True(r.IsDBNull(0));
+    }
+
+    [Fact]
+    public void V6_drops_AcceptedCertThumbprint_and_keeps_every_row()
+    {
+        // A column nothing ever read or wrote: the interop hands out no server certificate, so the
+        // pinning it was meant for cannot be built. Dropped rather than left promising it.
+        using var tmp = new TempDatabase();
+        tmp.Db.EnsureCreated();
+        using var c = tmp.Db.Open();
+        c.Cmd("INSERT INTO Connection(Name, Host, Notes, CreatedUtc) VALUES ('WIN02', 'contoso-win02', 'kept', '2026-01-01T00:00:00.0000000Z')").ExecuteNonQuery();
+
+        var columns = new List<string>();
+        using (var r = c.Cmd("SELECT name FROM pragma_table_info('Connection')").ExecuteReader())
+        {
+            while (r.Read()) columns.Add(r.GetString(0));
+        }
+
+        Assert.DoesNotContain("AcceptedCertThumbprint", columns);
+        Assert.Contains("AutoRaiseVpn", columns);
+        Assert.Equal("kept", c.Cmd("SELECT Notes FROM Connection").ExecuteScalar());
+    }
+
+    [Fact]
+    public void V5_adds_AutoRaiseVpn_off_for_every_existing_connection()
+    {
+        // Not nullable, unlike V3 and V4: the column is a consent, and a connection saved before it
+        // existed never gave one. DEFAULT 0 is what keeps an upgrade from raising a tunnel nobody
+        // agreed to.
+        using var tmp = new TempDatabase();
+        tmp.Db.EnsureCreated();
+        using var c = tmp.Db.Open();
+        c.Cmd("INSERT INTO Connection(Name, Host, VpnProfile, CreatedUtc) VALUES ('WIN02', 'contoso-win02', 'VPN Contoso', '2026-01-01T00:00:00.0000000Z')").ExecuteNonQuery();
+
+        Assert.Equal(0L, c.Cmd("SELECT AutoRaiseVpn FROM Connection").ExecuteScalar());
+    }
+
+    [Fact]
+    public void V7_adds_PassShortcuts_off_for_every_existing_connection()
+    {
+        using var tmp = new TempDatabase();
+        tmp.Db.EnsureCreated();
+        using var c = tmp.Db.Open();
+        c.Cmd("INSERT INTO Connection(Name, Host, CreatedUtc) VALUES ('WIN02', 'contoso-win02', '2026-01-01T00:00:00.0000000Z')").ExecuteNonQuery();
+
+        Assert.Equal(0L, c.Cmd("SELECT PassShortcuts FROM Connection").ExecuteScalar());
+    }
+
+    [Fact]
+    public void Deleting_a_connection_cascades_to_its_workspace_items()
+    {
+        using var tmp = new TempDatabase();
+        tmp.Db.EnsureCreated();
+        using var c = tmp.Db.Open();
+        c.Cmd("INSERT INTO Connection(Id, Name, Host, CreatedUtc) VALUES (7, 'SQL', 'contososql00001', '2026-01-01T00:00:00.0000000Z')").ExecuteNonQuery();
+        c.Cmd("INSERT INTO Workspace(Id, Name, AutoConnect, CreatedUtc) VALUES (1, 'PROD', 1, '2026-01-01T00:00:00.0000000Z')").ExecuteNonQuery();
+        c.Cmd("INSERT INTO WorkspaceItem(WorkspaceId, ConnectionId, Ordinal) VALUES (1, 7, 0)").ExecuteNonQuery();
+
+        c.Cmd("DELETE FROM Connection WHERE Id = 7").ExecuteNonQuery();
+
+        // The workspace survives, its item does not: that is what keeps a dead connection id out of it.
+        Assert.Equal(0L, c.Cmd("SELECT COUNT(*) FROM WorkspaceItem").ExecuteScalar());
+        Assert.Equal(1L, c.Cmd("SELECT COUNT(*) FROM Workspace").ExecuteScalar());
+    }
+}

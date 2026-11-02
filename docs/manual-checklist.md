@@ -1,10 +1,10 @@
 # Manual verification checklist
 
 Run before tagging a release. Items are grouped by the lot that introduced them.
-Automated tests cover `RemoteDeck.Core`; everything below touches COM, WPF, real
+Automated tests cover `Lucarne.Core`; everything below touches COM, WPF, real
 hardware or a real server, and cannot be automated reliably.
 
-**What no longer needs a human.** `tests/RemoteDeck.Core.Tests/Conventions/` now asserts
+**What no longer needs a human.** `tests/Lucarne.Core.Tests/Conventions/` now asserts
 things about the repository itself, and the boxes they replaced have been removed:
 
 - **Resources** — every key exists in `Strings.resx`, `Strings.fr.resx` *and*
@@ -15,7 +15,7 @@ things about the repository itself, and the boxes they replaced have been remove
   careful reader stood in the way.
 - **Markup** — no user-visible text left as a literal in any XAML, and no `{x:Static
   res:Strings.…}` pointing at a key that no longer exists.
-- **Artwork** — `RemoteDeck.ico` and `RemoteDeck-32.png` are committed, and the icon really
+- **Artwork** — `Lucarne.ico` and `Lucarne-32.png` are committed, and the icon really
   carries its nine sizes.
 
 So where a box below says "no missing string" or "no hard-coded English", that half is now
@@ -70,10 +70,10 @@ proven; what remains yours is whether the French **reads** well and fits its con
 - [ ] While the app is foreground, the shortcuts are swallowed **everywhere**, text
       boxes included. Until lot 5 filters on the focused control, confirm this is still
       the known behaviour and not a new regression.
-- [ ] **`Ctrl+N` and `Ctrl+F` reach the remote application**, not RemoteDeck, while the
+- [ ] **`Ctrl+N` and `Ctrl+F` reach the remote application**, not Lucarne, while the
       remote desktop has focus — they act on the connection list and are deliberately not
       in the hook's set. Press `Ctrl+F` in a remote editor: its own Find must open. Both
-      still work as the table says whenever RemoteDeck's own interface has the keyboard.
+      still work as the table says whenever Lucarne's own interface has the keyboard.
       *This is what the README's table now states; it used to imply the opposite, and a
       keystroke landing in a remote editor is how that was found (2026-09-10).*
 - [ ] In an environment where a low-level hook cannot be installed (EDR, group policy),
@@ -113,7 +113,7 @@ proven; what remains yours is whether the French **reads** well and fits its con
 - [ ] **Group colours.** Every row of a group carries the same coloured badge, the group's
       header shows the same colour as a square, and the editor's badge takes it as the group is
       typed. *Favorites* and *Ungrouped* headers have no square; a connection with no group has
-      a grey badge. Restart RemoteDeck: every group keeps its colour. Switch Windows to the
+      a grey badge. Restart Lucarne: every group keeps its colour. Switch Windows to the
       light theme: badges and squares still stand out, initials still read.
 - [ ] **Badges tell machines apart**: names that share a beginning (`FDC-VM-WIN01`,
       `FDC-VM-WIN03`) get different badges (`W1`, `W3`).
@@ -125,8 +125,8 @@ proven; what remains yours is whether the French **reads** well and fits its con
 - [x] Select a connection **with** a credential attached and press `Enter`: the session
       opens without any prompt, and the log shows `Password supplied from credential …`.
 - [x] Select a connection **with no credential** (or one whose credential was deleted):
-      RemoteDeck puts **no** password and the control raises its own **CredSSP prompt**.
-      Typing the password there must connect. RemoteDeck itself has no manual password
+      Lucarne puts **no** password and the control raises its own **CredSSP prompt**.
+      Typing the password there must connect. Lucarne itself has no manual password
       entry any more.
 - [ ] Connect a second connection while one is live: the InfoBar announces the current
       session is closing, and the new one opens once it is closed. Only one session at a
@@ -166,7 +166,7 @@ proven; what remains yours is whether the French **reads** well and fits its con
 
 - [ ] Drag the splitter to a new width, collapse/expand the pane, move and resize the
       window, then close and restart: the pane width, the collapsed state and the window
-      bounds come back. `%APPDATA%\RemoteDeck\settings.json` holds them.
+      bounds come back. `%APPDATA%\Lucarne\settings.json` holds them.
 - [ ] Save the geometry on a second monitor, unplug it, restart: the window opens
       **centred on the remaining desktop**, not off-screen.
 - [ ] Corrupt `settings.json` by hand (truncate it mid-object), restart: the app starts
@@ -174,7 +174,7 @@ proven; what remains yours is whether the French **reads** well and fits its con
 
 ### Degraded mode
 
-- [ ] Make `%APPDATA%\RemoteDeck\connections.db` unreadable (lock it, or point the app at
+- [ ] Make `%APPDATA%\Lucarne\connections.db` unreadable (lock it, or point the app at
       a directory it cannot write): the app still starts, the pane is replaced by its
       "unavailable" message, the InfoBar says the database is unavailable, and `Ctrl+N`,
       `F2`, `Delete` and *Manage credentials* answer with a warning instead of throwing.
@@ -349,8 +349,8 @@ success criteria of the design.
 ### Language
 
 - [ ] On a French Windows, the application starts **in French** with no configuration.
-- [ ] `set REMOTEDECK_UI_CULTURE=en-US` then start: the interface is in English.
-      `REMOTEDECK_UI_CULTURE=zz` starts normally in the system language and says so in
+- [ ] `set LUCARNE_UI_CULTURE=en-US` then start: the interface is in English.
+      `LUCARNE_UI_CULTURE=zz` starts normally in the system language and says so in
       the log — it must never prevent startup.
 - [ ] French pass over the **four modal windows** — *Connection editor*, *Credentials*,
       *Credential editor*, *Import*: every label, button, title, placeholder, tooltip and
@@ -365,7 +365,7 @@ success criteria of the design.
 - [ ] Also check the import window's column headers (200/200/180/180 px) and its summary
       line, and the palette's placeholder and empty-state lines.
 - [ ] **Known and expected**: disconnect reasons and validation messages come from
-      `RemoteDeck.Core` and stay **in English** inside the French interface — the shell
+      `Lucarne.Core` and stay **in English** inside the French interface — the shell
       wraps them in a French sentence but does not translate them. Confirm this is
       the known behaviour, not a missing translation.
 - [ ] Plurals read correctly in French for 0, 1 and several items (import tallies,
@@ -456,7 +456,7 @@ for most of it; `TEST-VM` is the reference target.
 
 - [ ] Detach a connection, move and resize its window, close it, then detach the **same
       connection** again: the window **comes back to the same place and size**.
-      `%APPDATA%\RemoteDeck\settings.json` carries a `detachedWindows` entry for it.
+      `%APPDATA%\Lucarne\settings.json` carries a `detachedWindows` entry for it.
 - [ ] The geometry is written on all three paths: closing the detached window, **reattaching
       it**, and closing the application with the window still open. Check the file after
       each.
@@ -474,25 +474,25 @@ for most of it; `TEST-VM` is the reference target.
 
 ## Application icon
 
-- [ ] **Explorer** shows the deck icon on `RemoteDeck.exe` — in the extra-large view (the
+- [ ] **Explorer** shows the deck icon on `Lucarne.exe` — in the extra-large view (the
       256 px frame, the only one stored as a PNG) and in the details view (16 px). Never the
       default .NET icon.
 - [ ] **Taskbar and Alt-Tab** show it, and the three stacked cards are still told apart at
       that size rather than reading as one blue blob.
-- [ ] **Main window**: the icon sits at the left of the title bar, before *RemoteDeck*.
+- [ ] **Main window**: the icon sits at the left of the title bar, before *Lucarne*.
 - [ ] **A detached session window** carries the same icon at the left of its 32 px strip,
       before the status dot — and the strip still drags the window: the icon must not
       swallow the gesture.
 - [ ] Switch Windows between light and dark: the icon is unchanged. It is a fixed colour and
       does **not** follow the accent, unlike the rest of the interface — expected, not a bug.
 *(The box that used to sit here — regenerated icon files committed after editing
-`tools/icon/New-RemoteDeckIcon.ps1` — is now `ShippedAssetTests`, which fails the build if
+`tools/icon/New-LucarneIcon.ps1` — is now `ShippedAssetTests`, which fails the build if
 either file is missing or the icon has lost a size. The convention it guarded still stands:
 CI publishes what is versioned and never generates artwork.)*
 
 ## Session navigation — double-click and the full-screen selector
 
-None of this is covered by automated tests: it all lives in `RemoteDeck.App`, which has no
+None of this is covered by automated tests: it all lives in `Lucarne.App`, which has no
 test project. These boxes are the only verification.
 
 ### Double-click to detach and to reattach
@@ -588,7 +588,7 @@ test project. These boxes are the only verification.
 - [x] *Save layout as…* is offered in the palette opened **from a detached, full-screen
       session**, not only from the main window — and the naming dialog appears **in front of**
       that full-screen window rather than behind it.
-- [ ] Interface in English, then in French (`REMOTEDECK_UI_CULTURE`): no workspace string
+- [ ] Interface in English, then in French (`LUCARNE_UI_CULTURE`): no workspace string
       is left hard-coded.
 
 ## Connection list — context menu
@@ -617,7 +617,7 @@ itself is WPF and cannot be; these boxes are its only verification.
 - [x] Right-click a **group header**: no destructive entry is offered.
 - [ ] With the database unavailable (degraded mode), *Favorite* reports the failure in the InfoBar
       and does not take the application down.
-- [x] In French (`REMOTEDECK_UI_CULTURE=fr-FR`): the entries read naturally and none is
+- [x] In French (`LUCARNE_UI_CULTURE=fr-FR`): the entries read naturally and none is
       truncated in the menu's width. *That they exist and are translated is now covered by the
       convention tests; the gesture hint reading* Suppr *rather than* Del *is part of that.*
 - [x] Light and dark theme: the menu follows the theme like the rest of the chrome.
@@ -654,7 +654,7 @@ feature rests on. **Verify that box first: if it fails, the rest is meaningless.
       *Observed 2026-09-05 on the reference client, tunnel down beforehand: the profile came up*
       *silently and the session opened by itself. The saved-credential handle is accepted by the*
       *server — the RAS 628 was the missing credential, as diagnosed.*
-- [x] The dial uses the credential **saved in the profile**. RemoteDeck asks for nothing and stores
+- [x] The dial uses the credential **saved in the profile**. Lucarne asks for nothing and stores
       nothing: check `probe-l0.log` for `RASDIALPARAMS dwSize … accepted` and a `RasDial … returned
       0`, and that no password appears anywhere in it.
 - [x] A profile whose credential is **not** saved (untick "Remember my sign-in info" in Windows,
@@ -662,7 +662,7 @@ feature rests on. **Verify that box first: if it fails, the rest is meaningless.
       sends you to Windows. Nothing is asked for.
 - [x] A dial that Windows refuses shows **Windows's own words** — the RAS message, in the interface
       language, not a paraphrase of ours.
-- [x] The tunnel stays up after RemoteDeck is closed. `RasHangUp` is deliberately never called.
+- [x] The tunnel stays up after Lucarne is closed. `RasHangUp` is deliberately never called.
 - [x] The profile name is matched **case-insensitively and trimmed**: typing the name in the
       wrong case works.
 - [x] Naming a profile that does not exist at all behaves like one that is down — asks, then says
@@ -705,14 +705,14 @@ code rather than silently — writing an untestable branch would be worse than s
 
 *Every open box below was ticked on 2026-09-06 on David's word, after the 0.4.1-rc.5 build.*
 
-**What actually makes the sign-in silent: the Windows WAM account cache, not RemoteDeck.**
+**What actually makes the sign-in silent: the Windows WAM account cache, not Lucarne.**
 A web-account connection was asking for the full Microsoft sign-in on every connect, while
 `mstsc.exe` on the same client reconnected silently. Investigation on 2026-09-04 settled it:
 
 - The token path is **not** private to `mstsc.exe`. `mstscax.dll` itself carries the WAM
   calls (`WebAuthenticationCoreManager`, `GetTokenSilentlyAsync`, `FindAccountAsync`) and the
   Remote Desktop app id `a4a365df-50f1-4397-bc59-1a1564b8bb9c`, and those modules load inside
-  RemoteDeck's own process. So a third-party ActiveX host is not structurally shut out.
+  Lucarne's own process. So a third-party ActiveX host is not structurally shut out.
 - The silence came from the **broker's account cache**. Once a `.tbacct` for the account
   exists under `%LOCALAPPDATA%\Packages\Microsoft.AAD.BrokerPlugin_cw5n1h2txyewy\AC\TokenBroker\Accounts`,
   `mstscax` acquires the RDS AAD token silently — for **any** build. Proven by running the
@@ -742,7 +742,7 @@ Entra property there; no undocumented property or token-injection interface is n
       no password reaches the control; only the UPN goes, as the account hint.
 - [x] Upgrading a database from V3 keeps every row; the new column reads null everywhere.
 - [x] To reproduce the original "prompt every time", start from an **empty** broker cache,
-      not by changing RemoteDeck.
+      not by changing Lucarne.
 
 ## Hardening — server authentication, crash log, hook re-arm, log rolling
 
@@ -756,7 +756,7 @@ one that matters most is the first: it changes what a spoofed server gets.
       *Observed 2026-09-05 on the reference client, `MsTscAx.MsTscAx` and `MsRDP.MsRDP.9` via*
       *IDispatch, unsited. Confirm on the real coclass with the next box.*
 - [x] After the first connection of a launch, `probe-l0.log` holds one `[R8] AuthenticationLevel
-      as shipped by the control, before RemoteDeck sets it: N` line. Record N here: ___
+      as shipped by the control, before Lucarne sets it: N` line. Record N here: ___
 - [x] A connection whose authentication is **Default — prompt if failed**, against a host whose
       certificate is not trusted (a self-signed one), shows the control's certificate warning
       before connecting. Before this change it connected in silence.
@@ -764,16 +764,16 @@ one that matters most is the first: it changes what a spoofed server gets.
       refuses. The user's explicit choice is kept, including 0.
 - [x] The editor's first option reads *Default — prompt if failed* in English and *Par défaut —
       demander en cas d'échec* in French.
-- [x] `dotnet publish` (release flags) produces a `RemoteDeck.exe` of about 159 MB, down from
+- [x] `dotnet publish` (release flags) produces a `Lucarne.exe` of about 159 MB, down from
       175 MB, and `bin/Release/…/win-x64/` holds a `fr` folder and no other culture.
 - [x] A crash — when one happens — ends `probe-l0.log` with a `[crash]` line naming the thread,
       the type, the HResult and the stack. Nothing to provoke on purpose; a box to tick the day it
       is seen.
 - [x] If application shortcuts (`Ctrl+K`, `Ctrl+W`, `Ctrl+Tab`) ever stop responding while a
-      session has the keyboard, clicking the RemoteDeck window brings them back, and the log may
+      session has the keyboard, clicking the Lucarne window brings them back, and the log may
       show `[R6] … hook could not be unhooked … re-armed`.
 - [x] Once `probe-l0.log` passes 1 MB, the next line rolls it: `probe-l0.log.1` appears and the
-      new `probe-l0.log` starts small. The file can be opened in a viewer while RemoteDeck runs.
+      new `probe-l0.log` starts small. The file can be opened in a viewer while Lucarne runs.
 
 ## Motion — palette and InfoBar
 
@@ -795,7 +795,7 @@ no view writes a literal one (`MotionTests`). What no test can see is whether it
 - [x] Hiding the InfoBar fades it out; its own close button, where enabled, closes it at once.
 - [x] Row hover in the connection list, on palette rows and on session tabs looks exactly as it did
       before: the same 150 ms fade, now read from the sheet.
-- [x] **Windows › Accessibility › Visual effects › Animation effects off**, RemoteDeck restarted:
+- [x] **Windows › Accessibility › Visual effects › Animation effects off**, Lucarne restarted:
       palette and InfoBar appear and vanish at once, and nothing waits. Turn it back on afterwards.
 - [x] Nothing over a remote desktop moves, in a tab or a detached window.
 
@@ -844,7 +844,7 @@ From driving the 0.4.1-rc.4 on 2026-09-06 (`docs/plans/2026-09-05-full-pass-revi
 (`ConnectionRulesTests`, `CredentialRulesTests`). To be looked at:
 
 - [x] `Ctrl+N`, Enter on the empty form: the InfoBar lists *Le nom est obligatoire.* and
-      *L'hôte est obligatoire.* in French — and in English under `REMOTEDECK_UI_CULTURE=en-US` —
+      *L'hôte est obligatoire.* in French — and in English under `LUCARNE_UI_CULTURE=en-US` —
       and the **Name and Host fields have a red edge**. Fill the name: its edge clears on the next
       Enter, the host's stays.
 - [x] Port `0`: the message quotes the range 1–65535 and the port field is marked. *Fixed* mode
@@ -869,7 +869,7 @@ What no test can reach is the tunnel actually dropping under a live session.
 *Every box below: tried on the reference client with the 0.4.1-rc.6 build, reported 2026-09-07.*
 
 - [x] Open a session on a connection that names a VPN profile, then **drop the tunnel from Windows**
-      while it is connected. RemoteDeck must stop at the **first** drop — no countdown, no five
+      while it is connected. Lucarne must stop at the **first** drop — no countdown, no five
       attempts — and the InfoBar must name the profile: *Le profil VPN « X » n'est plus monté.*
       *Verified 2026-09-06 on the reference client with the 0.4.1-rc.6 build.*
 - [x] The log carries one line: `… and the VPN profile '…' is not up; retries stopped`.
@@ -911,12 +911,12 @@ The copy itself, its content, its single-file journal, its replacement of an old
 failed copy stopping the migration are covered by `DatabaseBackupTests`. What only a real profile
 shows:
 
-- [ ] First launch of this build on a 0.4.2 database (V4): `%APPDATA%\RemoteDeck\connections.v4.bak`
+- [ ] First launch of this build on a 0.4.2 database (V4): `%APPDATA%\Lucarne\connections.v4.bak`
       appears beside `connections.db`, and `probe-l0.log` has *Database upgraded; the previous
       version was copied to …*. On a database already upgraded by 0.5.0-rc.1 (V5), the copy is
       `connections.v5.bak`.
 - [ ] Second launch: no new copy, no line.
-- [ ] **The way back works.** Close RemoteDeck, copy the `.bak` over `connections.db`, start 0.4.2:
+- [ ] **The way back works.** Close Lucarne, copy the `.bak` over `connections.db`, start 0.4.2:
       it opens, with the connections as they were.
 - [ ] The `.bak` is a single file — no `-wal` or `-shm` beside it after opening it in a SQLite viewer.
 - [ ] Make the copy impossible (a folder named `connections.v5.bak.tmp` beside the database, on a
@@ -953,11 +953,11 @@ rest is a human's.
 - [ ] A connection with **no** profile: no tag, and the name keeps its width.
 - [ ] Tunnel **up**: a muted *VPN* tag before the state pill; its tooltip names the profile as
       connected.
-- [ ] Cut the tunnel from Windows (not from RemoteDeck): within a few seconds the tag turns to the
+- [ ] Cut the tunnel from Windows (not from Lucarne): within a few seconds the tag turns to the
       warning colour with the warning sign, the tooltip says not connected, and `probe-l0.log` has
       one *VPN state changed* line — not one per notification.
 - [ ] Raise it again from Windows: the tag goes back to muted, one more line.
-- [ ] *Raise it without asking* on a ticked connection: the tag follows the tunnel RemoteDeck raised.
+- [ ] *Raise it without asking* on a ticked connection: the tag follows the tunnel Lucarne raised.
 - [ ] A Wi-Fi change or a sleep/resume with no VPN involved writes no *VPN state changed* line.
 - [ ] Searching, adding or editing a connection (the pane rebuilds): the tags are still right.
 - [ ] Light and dark themes: the warning colour reads on both; the muted tag is not invisible.
@@ -965,7 +965,7 @@ rest is a human's.
 
 ## Connect on a connection whose tab has ended
 
-All in `RemoteDeck.App`, so none of it is covered by an automated test. The VPN decision itself is
+All in `Lucarne.App`, so none of it is covered by an automated test. The VPN decision itself is
 `VpnConsent`'s, and its tests still hold.
 
 - [ ] Sign out of a remote session (tab lands in *Idle*), then **double-click** its connection in
@@ -1001,12 +1001,12 @@ All in `RemoteDeck.App`, so none of it is covered by an automated test. The VPN 
 ### Sessions and VPN
 
 - [x] Detach a tab on a 1366×768 screen at 175 % (or any work area under 640×480 DIP):
-      the window opens, sized to the screen; RemoteDeck does not close.
+      the window opens, sized to the screen; Lucarne does not close.
 - [x] Cancel a reconnection while an attempt is in flight, on a host that stays down: the
       tab stays *Failed* and no new countdown starts.
-- [x] A VPN profile with a wrong saved password: dial it twice in a row from RemoteDeck.
+- [x] A VPN profile with a wrong saved password: dial it twice in a row from Lucarne.
       The second attempt reports Windows' error again, not 602 "port already open".
-- [x] Close and reopen twenty tabs: RemoteDeck's handle count (Task Manager, *Handles*
+- [x] Close and reopen twenty tabs: Lucarne's handle count (Task Manager, *Handles*
       column) comes back to about where it started.
 
 ### Keyboard
@@ -1029,9 +1029,9 @@ All in `RemoteDeck.App`, so none of it is covered by an automated test. The VPN 
       appears for each workspace while sessions are open.
 - [x] Narrator reads every editor field by its label, and both search boxes by their
       placeholder.
-- [x] `Ctrl+K` → *About RemoteDeck*: the version matches the release (a development build
+- [x] `Ctrl+K` → *About Lucarne*: the version matches the release (a development build
       reads 1.0.0+commit), the links open the browser, *Open the log folder* opens
-      `%APPDATA%\RemoteDeck\logs`, *Copy the details* pastes five lines. `Escape` and `Enter`
+      `%APPDATA%\Lucarne\logs`, *Copy the details* pastes five lines. `Escape` and `Enter`
       close it. Opened from a detached window, it appears on that window's monitor.
 
 ## Export and import of the configuration
@@ -1047,17 +1047,17 @@ All in `RemoteDeck.App`, so none of it is covered by an automated test. The VPN 
 - [x] Hand-edit the file (`"format"` changed, broken JSON): the import says it cannot read
       it and writes nothing.
 
-## RemoteDeck inside a RemoteDeck
+## Lucarne inside a Lucarne
 
 *Ticked 2026-09-28: tested by hand on 0.7.0-preview3.*
 
-- [x] Local RemoteDeck connected to a machine that runs RemoteDeck; tick *Send RemoteDeck's
+- [x] Local Lucarne connected to a machine that runs Lucarne; tick *Send Lucarne's
       shortcuts to this remote desktop* on that connection. Click into the remote desktop,
       press `Ctrl+K`: the **remote** palette opens (its About shows the remote version).
-- [x] Same session, `Ctrl+W`, `Ctrl+Tab`, `Ctrl+B`: all act on the remote RemoteDeck.
+- [x] Same session, `Ctrl+W`, `Ctrl+Tab`, `Ctrl+B`: all act on the remote Lucarne.
 - [x] Click the local pane: `Ctrl+K` opens the local palette again.
 - [x] Detached and full screen: `Ctrl+Alt+Pause` still leaves full screen locally.
-- [x] Untick the box: the local RemoteDeck takes the shortcuts again, as before.
+- [x] Untick the box: the local Lucarne takes the shortcuts again, as before.
 
 ## All monitors
 
@@ -1089,56 +1089,56 @@ once it was marked full screen.*
 - [ ] A *Dynamic* connection, detached, `F11`: full screen on one monitor, as before.
 - [ ] Import a `.rdp` file containing `use multimon:i:1`: the connection is in *All monitors*.
 - [x] Close an *All monitors* session from full screen a few seconds after the remote desktop
-      appears, five times in a row: RemoteDeck never stops responding. *Ticked 2026-10-29: destroyed
+      appears, five times in a row: Lucarne never stops responding. *Ticked 2026-10-29: destroyed
       straight away, the control hung in two closes out of three; destroyed a second later, five
       out of five went through.*
-- [ ] Quit RemoteDeck while an *All monitors* session is open in full screen: it exits within a
+- [ ] Quit Lucarne while an *All monitors* session is open in full screen: it exits within a
       few seconds and leaves no process behind.
 
 ## Updates
 
 Needs a throwaway release on the test channel: build with `-p:UpdateChannel=test`
-(repository `dasimon/remotedeck-update-test`) and a version lower than the release it will find.
-Never test against a real release of `dasimon/remotedeck` from the machine in daily use.
+(repository `dasimon/lucarne-update-test`) and a version lower than the release it will find.
+Never test against a real release of `dasimon/lucarne` from the machine in daily use.
 
 - [ ] **Writable folder.** Run the older build from a folder you own. The banner appears within
-      about 10 seconds with the release's version; *Update* shows a progress bar, then RemoteDeck
-      restarts on the new version (*About* shows it) and `RemoteDeck.exe.old` sits beside it.
-      After the next launch the `.old` file is gone, and `%LOCALAPPDATA%\RemoteDeck\update\`
+      about 10 seconds with the release's version; *Update* shows a progress bar, then Lucarne
+      restarts on the new version (*About* shows it) and `Lucarne.exe.old` sits beside it.
+      After the next launch the `.old` file is gone, and `%LOCALAPPDATA%\Lucarne\update\`
       is gone or empty.
-- [ ] **Protected folder, elevation accepted.** Same, from `C:\Program Files\RemoteDeck` or
-      similar: the UAC prompt names RemoteDeck, the update installs, RemoteDeck restarts
-      **not elevated**. `RemoteDeck.exe.old` stays beside it after the next launch and is gone
+- [ ] **Protected folder, elevation accepted.** Same, from `C:\Program Files\Lucarne` or
+      similar: the UAC prompt names Lucarne, the update installs, Lucarne restarts
+      **not elevated**. `Lucarne.exe.old` stays beside it after the next launch and is gone
       after the next Windows restart. The elevated step logs to
-      `%APPDATA%\RemoteDeck\logs\probe-l0-apply-update.log` (the main log names that file) and
+      `%APPDATA%\Lucarne\logs\probe-l0-apply-update.log` (the main log names that file) and
       says the `.old` file will be deleted at the next restart.
-- [ ] **Closed during the download.** With a session open, *Update*, then close RemoteDeck while
+- [ ] **Closed during the download.** With a session open, *Update*, then close Lucarne while
       the progress bar runs: it closes, nothing is asked about sessions, the executable is
-      unchanged, and RemoteDeck does not start again on its own.
+      unchanged, and Lucarne does not start again on its own.
 - [ ] **Protected folder, elevation refused.** Cancel the UAC prompt: the banner says the verified
       file is in *Downloads*, the folder opens, the installed executable is unchanged, and the
       offer is still there.
 - [ ] **Wrong hash.** Publish a release whose `SHA256SUMS` does not match the executable: the
-      banner says "The update failed (the downloaded RemoteDeck.exe does not have the hash
-      SHA256SUMS lists). RemoteDeck is unchanged.", nothing is installed, and the downloaded
+      banner says "The update failed (the downloaded Lucarne.exe does not have the hash
+      SHA256SUMS lists). Lucarne is unchanged.", nothing is installed, and the downloaded
       file is removed.
 - [ ] **Digest that disagrees with `SHA256SUMS`.** Publish a release where GitHub's digest of the
       asset differs from the `SHA256SUMS` line (for instance a `SHA256SUMS` edited after upload):
       the banner says the update failed because `SHA256SUMS` and the GitHub API give different
       hashes, refused before the executable is downloaded (no progress bar), nothing installed.
-- [ ] **Another instance.** Start a second RemoteDeck from the same executable, then *Update*: the
-      banner says another RemoteDeck is running from this file, and nothing is downloaded.
+- [ ] **Another instance.** Start a second Lucarne from the same executable, then *Update*: the
+      banner says another Lucarne is running from this file, and nothing is downloaded.
 - [ ] **On a shared machine** (two Windows sessions on the same executable): the other user's
-      RemoteDeck blocks the update in the same way, and the banner says it may be another user's.
+      Lucarne blocks the update in the same way, and the banner says it may be another user's.
 - [ ] **Network cut during the download.** Disconnect after the progress bar has started: the banner
       reports the failure, the executable is intact, the partial file is removed, and *Update*
       works again once the network is back.
 - [ ] **Development build.** A build without `UpdateChannel`: no banner, no request to GitHub in
       the log, no *Check for updates automatically* in the palette, and in *About* the button is
       greyed with "Development build".
-- [ ] **A session opened while the UAC prompt is up** (protected folder): after accepting, RemoteDeck
+- [ ] **A session opened while the UAC prompt is up** (protected folder): after accepting, Lucarne
       asks again about the new session. *Yes*: restart. *No*: the window stays, the banner says
-      the new version starts when RemoteDeck is closed, and closing it starts that version.
+      the new version starts when Lucarne is closed, and closing it starts that version.
 - [ ] **Open sessions at the start.** With a session open, *Update* asks first; *No* changes
       nothing. With *Reopen last session at startup* on, the session comes back after the restart.
 - [ ] **The UAC prompt can open behind the window**: the banner stays on "Installing…" until it
@@ -1155,15 +1155,15 @@ Never test against a real release of `dasimon/remotedeck` from the machine in da
       request in the log after 10 seconds or at any later time; on again, a check follows.
 - [ ] **Managed workstation (Defender attack surface reduction).** From a folder such as
       `C:\Programmes <company>`, with an ASR policy pushed by Intune: the update is not blocked
-      (no event 1121 for `RemoteDeck.exe` in *Microsoft-Windows-Windows Defender/Operational*), and the new executable starts.
+      (no event 1121 for `Lucarne.exe` in *Microsoft-Windows-Windows Defender/Operational*), and the new executable starts.
 
 ## Build prerequisites (any lot)
 
 *Ticked 2026-09-06: the CI runs on PRs #2, #3 and #4 built a clean clone with 0 warnings, and the release publish is win-x64.*
 
-- [x] A clean clone builds with `dotnet build RemoteDeck.sln` on a machine that has the
+- [x] A clean clone builds with `dotnet build Lucarne.sln` on a machine that has the
       Windows SDK or the .NET Framework 4.8 Developer Pack (`TlbImp.exe`). Without it
       the interop generation target fails with a clear message, not a silent skip.
-- [x] `dotnet build RemoteDeck.sln` produces **zero warnings**.
+- [x] `dotnet build Lucarne.sln` produces **zero warnings**.
 - [x] Build is x64. **ARM64 is out of scope for v1**: the interop is generated with
       `/machine:X64`. Do not publish an ARM64 artefact without redoing this checklist.
