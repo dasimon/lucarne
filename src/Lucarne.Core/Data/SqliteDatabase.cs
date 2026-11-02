@@ -24,7 +24,13 @@ public sealed class SqliteDatabase(string path)
     {
         var connection = new SqliteConnection(ConnectionString);
         connection.Open();
-        connection.Cmd("PRAGMA foreign_keys = ON; PRAGMA journal_mode = WAL;").ExecuteNonQuery();
+        // Disposed, not left to the collector: a command collected undisposed keeps its statement until
+        // its finalizer runs, and SQLite keeps the file open with it after the connection is closed.
+        using (var pragmas = connection.Cmd("PRAGMA foreign_keys = ON; PRAGMA journal_mode = WAL;"))
+        {
+            pragmas.ExecuteNonQuery();
+        }
+
         return connection;
     }
 
@@ -86,7 +92,9 @@ public sealed class SqliteDatabase(string path)
                 connection.BackupDatabase(destination);
                 // The copy inherits WAL from the source, and a WAL file grows -wal and -shm companions
                 // the moment it is opened. A backup is something to copy back by hand: one file.
-                destination.Cmd("PRAGMA journal_mode = DELETE;").ExecuteNonQuery();
+                // Disposed before the move below, for the reason given in Open.
+                using var journal = destination.Cmd("PRAGMA journal_mode = DELETE;");
+                journal.ExecuteNonQuery();
             }
 
             File.Move(working, target, overwrite: true);
