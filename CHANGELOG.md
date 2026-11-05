@@ -2,7 +2,7 @@
 
 All notable changes to Lucarne (formerly RemoteDeck) are recorded here. Dates are ISO 8601.
 
-## Unreleased
+## 1.1.0 — 2026-11-05
 
 The session area has a face of its own while there is no desktop to show.
 
