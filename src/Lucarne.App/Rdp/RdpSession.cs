@@ -481,6 +481,14 @@ internal sealed class RdpSession : IDisposable
             return _sessionHost;
         }
 
+        // Handle first, by the property that creates it unconditionally: CreateControl() alone
+        // creates no handle for a control that is not visible, and since 2026-11-04 the host is
+        // Hidden until the session is connected — the scene stands where the control would paint
+        // its blank. Without this line the first connection, and every Reconnect of a never-
+        // connected tab, failed with "The RDP control has not been created yet". The container
+        // the WindowsFormsHost built has its own window whether or not it is shown, so the
+        // control's window is created under it, hidden with it, and shown with it on Connected.
+        _ = _ax.Handle;
         _ax.CreateControl();
         var host = new RdpSessionHost(_ax);
         host.Connected += OnHostConnected;
@@ -837,6 +845,9 @@ internal sealed class RdpSession : IDisposable
                 return;
             }
 
+            // The last line a hang inside the control's teardown leaves in the log; the dump of
+            // 2026-11-05 was read from exactly this call.
+            ProbeLog.Write("session", $"'{Connection.Name}': destroying the control");
             _ax.Dispose();
         }
         catch (Exception ex)

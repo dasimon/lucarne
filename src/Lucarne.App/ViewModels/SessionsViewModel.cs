@@ -259,11 +259,12 @@ internal sealed partial class SessionsViewModel : ObservableObject
             return false;
         }
 
-        // A detached host is always visible: it is the whole content of its window, and the
-        // activation pass below must not hide it on its way to the neighbour.
-        session.Host.Visibility = Visibility.Visible;
+        // Detached before the visibility rule runs: a detached host is on screen in its own
+        // window whatever the docked area shows, and the activation pass below must not hide it
+        // on its way to the neighbour.
         _detached[tab] = window;
         SetDetached(tab, true);
+        ApplyHostVisibility(tab);
         ProbeLog.Write("session", $"'{tab.Title}' detached ({_detached.Count} window(s))");
 
         if (ReferenceEquals(Active, tab))
@@ -376,7 +377,9 @@ internal sealed partial class SessionsViewModel : ObservableObject
             }
 
             window.HostArea.Child = session.Host;
-            session.Host.Visibility = Visibility.Visible;
+            // The tab is still flagged detached — Reattach clears the flag only once it has
+            // succeeded — so the rule puts the host back on screen in its window.
+            ApplyHostVisibility(window.Tab);
             session.AttachedTo(window.HostArea);
         }
         catch (Exception ex)
@@ -637,13 +640,8 @@ internal sealed partial class SessionsViewModel : ObservableObject
     {
         foreach (var tab in Tabs)
         {
-            bool active = ReferenceEquals(tab, value);
-            tab.IsActive = active;
-
-            // A detached session stays visible whatever the docked area is showing: it is the only
-            // content of its own window, and hiding it there would blank a window the user is
-            // looking at.
-            tab.Session.Host.Visibility = active || tab.IsDetached ? Visibility.Visible : Visibility.Hidden;
+            tab.IsActive = ReferenceEquals(tab, value);
+            ApplyHostVisibility(tab);
         }
 
         if (value is not null)
@@ -666,5 +664,45 @@ internal sealed partial class SessionsViewModel : ObservableObject
         _ = CloseAsync(tab);
     }
 
-    private void OnTabChanged(SessionTabViewModel tab) => TabChanged?.Invoke(tab);
+    private void OnTabChanged(SessionTabViewModel tab)
+    {
+        // Before the relay: the windows that listen draw the scene over the host's place, and
+        // they must find the host already hidden when there is no desktop behind it.
+        ApplyHostVisibility(tab);
+        TabChanged?.Invoke(tab);
+    }
+
+    /// <summary>
+    /// True while the control has a desktop to paint. In every other state the control paints a
+    /// blank — white, in practice — and the window shows the session scene in its place.
+    /// Closing counts: the desktop stays on screen until the control reports the disconnect.
+    /// </summary>
+    internal static bool ShowsDesktop(SessionState state) => state is SessionState.Connected or SessionState.Closing;
+
+    /// <summary>
+    /// The one rule for a host's visibility: on screen only where it is looked at — the docked area
+    /// for the active tab, its own window for a detached one — and only while there is a desktop to
+    /// show. Hidden and never Collapsed, for the reason given at the top of this class.
+    /// </summary>
+    /// <remarks>
+    /// Hidden while connecting is nothing new for the control: a background tab has always
+    /// reconnected with its host hidden, and the Win32 window keeps its size either way, so the
+    /// resolution negotiated at connect time is the one the area has.
+    /// </remarks>
+    private static void ApplyHostVisibility(SessionTabViewModel tab)
+    {
+        // Left alone from Closing on. Visibility reaches the control itself — WindowsFormsHost
+        // translates it to Child.Visible, i.e. ShowWindow on the control's window — and a control
+        // hidden in the dispatcher turn before its disposal hung the application inside its own
+        // WM_DESTROY on 2026-11-05: the UI thread waiting on a kernel object in mstscax, one of the
+        // control's threads waiting on a critical section. The tab leaves the strip moments later
+        // and takes the host with it, so a closed host that stays as it was costs nothing.
+        if (tab.State is SessionState.Closing or SessionState.Closed)
+        {
+            return;
+        }
+
+        bool shown = (tab.IsActive || tab.IsDetached) && ShowsDesktop(tab.State);
+        tab.Session.Host.Visibility = shown ? Visibility.Visible : Visibility.Hidden;
+    }
 }

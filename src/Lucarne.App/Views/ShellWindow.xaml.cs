@@ -203,6 +203,9 @@ public partial class ShellWindow : Wpf.Ui.Controls.FluentWindow
         // the two callbacks that put a session's host in — and take it out of — SessionsArea.
         _sessions = new SessionsViewModel(AttachSession, DetachSession);
         _sessions.ActiveChanged += OnSessionsChanged;
+        // The scene's two buttons are the bar's two buttons: same handlers, same gate.
+        Scene.ReconnectRequested += ReconnectActiveTab;
+        Scene.CancelRequested += () => _sessions.Active?.Session.CancelReconnect();
         _sessions.TabChanged += OnTabChanged;
         TabStrip.ViewModel = _sessions;
         TabStrip.DetachRequested += OnDetachRequested;
@@ -2469,11 +2472,16 @@ public partial class ShellWindow : Wpf.Ui.Controls.FluentWindow
     private void UpdateSessionBar()
     {
         var tab = _sessions.Active;
-        SessionLabel.Text = tab is null
-            ? Strings.Shell_NoSession
-            : Text.Of(Strings.Shell_SessionLabel, tab.Title, tab.Subtitle, tab.StateText);
+        SessionTitle.Text = tab?.Title ?? Strings.Shell_NoSession;
+        SessionSubtitle.Text = tab?.Subtitle ?? "";
+        // The pill where it has a word for the state; the bar's own sentence where it has none —
+        // connecting, closing — so the bar is never silent about a session that is doing something.
+        var status = tab is null ? ConnectionStatus.None : StatusTag.For(tab.State);
+        SessionStatus.Status = status;
+        SessionStateText.Text = tab is not null && status == ConnectionStatus.None ? tab.StateText : "";
 
         bool live = tab is not null && !_closeInProgress;
+        Scene.Show(tab, live);
         ReconnectButton.Visibility = live && tab!.State is SessionState.Failed or SessionState.Idle
             ? Visibility.Visible
             : Visibility.Collapsed;

@@ -34,6 +34,11 @@ public sealed partial class ConnectionItem : ObservableObject
     public Connection Connection => Match.Connection;
     public string Name => Match.Connection.Name;
     public string Host => Match.Connection.Host;
+
+    /// <summary>False when the host is the name again, whatever the case: the row then says it
+    /// once. A host that differs only by case is still the same word to the reader.</summary>
+    public bool ShowsHost => !string.Equals(Host.Trim(), Name.Trim(), StringComparison.OrdinalIgnoreCase);
+
     public bool IsFavorite => Match.Connection.IsFavorite;
 
     /// <summary>The connection's own group, which colours its badge — unlike <see cref="Group"/>,

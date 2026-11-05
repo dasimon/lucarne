@@ -3,6 +3,7 @@
                  xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
                  xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
                  xmlns:views="clr-namespace:Lucarne.App.Views"
+                 xmlns:controls="clr-namespace:Lucarne.App.Controls"
                  xmlns:res="clr-namespace:Lucarne.App.Resources"
                  Title="Lucarne"
                  Width="1280" Height="800"
@@ -177,10 +178,37 @@
                            AutomationProperties.Name="{x:Static res:Strings.Shell_PaneToggleToolTip}"
                            Click="OnPaneToggleClick" />
 
-                <TextBlock x:Name="SessionLabel" Grid.Column="1"
-                           VerticalAlignment="Center"
-                           TextTrimming="CharacterEllipsis"
-                           Text="{x:Static res:Strings.Shell_NoSession}" />
+                <!-- What the active tab is, said as three things rather than one sentence: the
+                     name in the text colour, the address in the muted one, the state as the pane's
+                     own pill — so the bar reads like the row the session came from. Each column is
+                     Auto with a ceiling, and the name gives way first: it is the one of the three
+                     the tab strip and the scene also say. -->
+                <Grid Grid.Column="1" VerticalAlignment="Center">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" MaxWidth="320" />
+                        <ColumnDefinition Width="Auto" MaxWidth="240" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <TextBlock x:Name="SessionTitle" Grid.Column="0"
+                               VerticalAlignment="Center"
+                               FontWeight="SemiBold"
+                               Foreground="{DynamicResource RdText}"
+                               TextTrimming="CharacterEllipsis"
+                               Text="{x:Static res:Strings.Shell_NoSession}" />
+                    <TextBlock x:Name="SessionSubtitle" Grid.Column="1"
+                               Margin="8,0,0,0"
+                               VerticalAlignment="Center"
+                               Foreground="{DynamicResource RdTextMuted}"
+                               TextTrimming="CharacterEllipsis" />
+                    <!-- The pill, or — while it has no word for the state (connecting, closing) —
+                         the bar's own sentence in its place. Never both. -->
+                    <controls:StatusTag x:Name="SessionStatus" Grid.Column="2" Margin="10,0,0,0" />
+                    <TextBlock x:Name="SessionStateText" Grid.Column="2"
+                               Margin="10,0,0,0"
+                               VerticalAlignment="Center"
+                               Foreground="{DynamicResource RdTextMuted}"
+                               TextTrimming="CharacterEllipsis" />
+                </Grid>
 
                 <ui:Button x:Name="ReconnectButton" Grid.Column="2" Margin="8,0,0,0"
                            Content="{x:Static res:Strings.Shell_Reconnect}"
@@ -271,7 +299,14 @@
                      Visible and the others Hidden. Collapsed when there is no tab at all, so the
                      black rectangle does not sit over the message above. -->
                 <Border x:Name="SessionsBorder" CornerRadius="{StaticResource RdRadius}" Background="{DynamicResource RdSessionGround}" Visibility="Collapsed">
-                    <Grid x:Name="SessionsArea" />
+                    <Grid>
+                        <Grid x:Name="SessionsArea" />
+                        <!-- Over the hosts' place, for the active tab while its host is hidden: what
+                             the session is doing, instead of the blank the control would paint. The
+                             hosts stay in the tree underneath, measured at the area's size, so the
+                             resolution they negotiate is the one they will be shown at. -->
+                        <views:SessionScene x:Name="Scene" Visibility="Collapsed" />
+                    </Grid>
                 </Border>
             </Grid>
         </Grid>

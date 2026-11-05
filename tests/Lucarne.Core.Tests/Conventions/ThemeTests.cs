@@ -49,14 +49,30 @@ public sealed class ThemeTests
     }
 
     [Fact]
-    public void The_sheet_defines_exactly_the_three_type_sizes_and_the_hero_glyph()
+    public void The_sheet_defines_exactly_the_four_type_sizes_and_the_hero_glyph()
     {
         var sheet = File.ReadAllText(Path.Combine(RepoFiles.AppResources, "Theme.xaml"));
         var sizes = Regex.Matches(sheet, @"<sys:Double x:Key=""(Rd(?:Font\w*|GlyphHero))"">([0-9.]+)</sys:Double>")
             .ToDictionary(m => m.Groups[1].Value, m => double.Parse(m.Groups[2].Value, System.Globalization.CultureInfo.InvariantCulture));
 
-        Assert.Equal(["RdFont", "RdFontMd", "RdFontSm", "RdGlyphHero"], sizes.Keys.Order(StringComparer.Ordinal));
-        Assert.True(sizes["RdFontSm"] < sizes["RdFontMd"] && sizes["RdFontMd"] < sizes["RdFont"], "Sm < Md < default, or the names lie.");
+        Assert.Equal(["RdFont", "RdFontLg", "RdFontMd", "RdFontSm", "RdGlyphHero"], sizes.Keys.Order(StringComparer.Ordinal));
+        Assert.True(sizes["RdFontSm"] < sizes["RdFontMd"] && sizes["RdFontMd"] < sizes["RdFont"] && sizes["RdFont"] < sizes["RdFontLg"],
+            "Sm < Md < default < Lg, or the names lie.");
+    }
+
+    [Fact]
+    public void The_display_size_is_taken_only_by_the_session_scene()
+    {
+        // Lg exists for one surface: the machine's name in the middle of the session area. A bar, a
+        // row or a form that borrows it makes the scene one voice among several.
+        var offenders = Views()
+            .Where(path => !path.EndsWith("SessionScene.xaml", StringComparison.Ordinal))
+            .Where(path => File.ReadAllText(path).Contains("RdFontLg", StringComparison.Ordinal))
+            .Select(path => Path.GetRelativePath(RepoFiles.Root, path))
+            .ToList();
+
+        Assert.True(offenders.Count == 0,
+            $"RdFontLg outside the session scene: {string.Join("; ", offenders)}.");
     }
 
     [Fact]

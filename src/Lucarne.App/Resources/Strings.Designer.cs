@@ -631,15 +631,6 @@ namespace Lucarne.App.Resources {
         }
 
         /// <summary>
-        ///   Looks up a localized string similar to {0} — {1} · {2}.
-        /// </summary>
-        public static string Shell_SessionLabel {
-            get {
-                return ResourceManager.GetString("Shell_SessionLabel", resourceCulture);
-            }
-        }
-
-        /// <summary>
         ///   Looks up a localized string similar to No Remote Desktop control found.
         /// </summary>
         public static string Shell_NoControlTitle {

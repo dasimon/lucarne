@@ -245,9 +245,6 @@
   <data name="Shell_ShortcutPalette" xml:space="preserve">
     <value>Ctrl+K</value>
   </data>
-  <data name="Shell_SessionLabel" xml:space="preserve">
-    <value>{0} — {1} · {2}</value>
-  </data>
   <data name="Shell_NoControlTitle" xml:space="preserve">
     <value>No Remote Desktop control found</value>
   </data>
