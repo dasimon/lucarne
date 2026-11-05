@@ -115,8 +115,8 @@ proven; what remains yours is whether the French **reads** well and fits its con
       typed. *Favorites* and *Ungrouped* headers have no square; a connection with no group has
       a grey badge. Restart Lucarne: every group keeps its colour. Switch Windows to the
       light theme: badges and squares still stand out, initials still read.
-- [ ] **Badges tell machines apart**: names that share a beginning (`FDC-VM-WIN01`,
-      `FDC-VM-WIN03`) get different badges (`W1`, `W3`).
+- [ ] **Badges tell machines apart**: names that share a beginning (`CONTOSO-VM-WIN01`,
+      `CONTOSO-VM-WIN03`) get different badges (`W1`, `W3`).
 - [ ] Open a session on a connection that has a group: its tab shows the group's square after
       the state dot. A connection with no group shows no square and the caption does not move.
 
@@ -1014,7 +1014,7 @@ All in `Lucarne.App`, so none of it is covered by an automated test. The VPN dec
 
 ## Review follow-ups (2026-09-25)
 
-*Ticked 2026-09-28: tested by hand on 0.7.0-preview3, client and FDC-WIN02.*
+*Ticked 2026-09-28: tested by hand on 0.7.0-preview3, on the client and on a server.*
 
 ### Import and security
 

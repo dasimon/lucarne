@@ -103,7 +103,7 @@ RemoteDeck updates itself from GitHub, the connection editor reads at a glance, 
 - **Each group has a colour**, picked from its name: nothing to set, and the same group gets the
   same colour on every machine. It shows on the badge of each connection in the pane, as a square
   on the group's header and on the session's tab, and on the editor's badge.
-- **Badges with the distinctive end of the name**: `FDC-VM-WIN07` shows `W7`, `FDCSQL-RECETTE`
+- **Badges with the distinctive end of the name**: `CONTOSO-VM-WIN07` shows `W7`, `CONTOSOSQL-RECETTE`
   shows `RE`, so machines of one fleet no longer share the same letters.
 - **Group headers show how many connections they hold.**
 - **The session bar is grouped**: session actions, tools, then *Disconnect*, now with an icon.

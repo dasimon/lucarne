@@ -6,16 +6,16 @@ namespace Lucarne.Core.Tests.Model;
 public sealed class MonogramTests
 {
     [Theory]
-    // Names in a fleet share their beginning ("FDC-VM-…"); the badge takes the end, where they differ.
-    [InlineData("FDC-VM-WIN07", "W7")]
-    [InlineData("FDC-VM-WIN10", "W10")]
-    [InlineData("FDC-VM-AD002", "A2")]
-    [InlineData("FDCSQL00003", "F3")]
-    [InlineData("FDC-HYPERV-03", "H3")]
-    [InlineData("FDC-WIN02", "W2")]
+    // Names in a fleet share their beginning ("CONTOSO-VM-…"); the badge takes the end, where they differ.
+    [InlineData("CONTOSO-VM-WIN07", "W7")]
+    [InlineData("CONTOSO-VM-WIN10", "W10")]
+    [InlineData("CONTOSO-VM-AD002", "A2")]
+    [InlineData("CONTOSOSQL00003", "C3")]
+    [InlineData("CONTOSO-HYPERV-03", "H3")]
+    [InlineData("CONTOSO-WIN02", "W2")]
     // No number at the end: the first two letters of the last word.
-    [InlineData("FDCSQL-RECETTE", "RE")]
-    [InlineData("FDC-VM-WEB", "WE")]
+    [InlineData("CONTOSOSQL-RECETTE", "RE")]
+    [InlineData("CONTOSO-VM-WEB", "WE")]
     [InlineData("nas parnassium", "PA")]
     [InlineData("x", "X")]
     [InlineData("été", "ÉT")]
