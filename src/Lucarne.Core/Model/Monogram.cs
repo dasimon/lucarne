@@ -2,10 +2,10 @@ namespace Lucarne.Core.Model;
 
 /// <summary>
 /// The letters a connection's badge shows, taken from the end of its name: machines of one fleet
-/// share their beginning ("FDC-VM-WIN01", "FDC-VM-WIN03"), so initials would draw the same badge
+/// share their beginning ("CONTOSO-VM-WIN01", "CONTOSO-VM-WIN03"), so initials would draw the same badge
 /// on every row. The badge is the first letter of the last word that has one, followed by the
 /// number the name ends with ("W1", "W3"), or by that word's second letter when there is no number
-/// ("FDCSQL-RECETTE" gives "RE"). Words are runs of letters and digits.
+/// ("CONTOSOSQL-RECETTE" gives "RE"). Words are runs of letters and digits.
 /// </summary>
 public static class Monogram
 {
