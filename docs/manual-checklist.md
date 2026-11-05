@@ -213,20 +213,20 @@ probe has not been run. The lot is not closed until this section is.
       scene over the session area — badge with the row's initials on the group's hue,
       name, host and port, the state with its dot — and **never the control's white
       blank**. Checked on 2026-11-04 on a failed tab, dark theme, docked.
-- [ ] The scene reads in the **light theme**: text and badge on the lifted surface, the
-      hairline visible against the window.
+- [x] The scene reads in the **light theme**: text and badge on the lifted surface, the
+      hairline visible against the window. Reported fine on 2026-11-05.
 - [x] **Reconnect** on the scene behaves exactly as the bar's *Reconnect* (VPN gate
       included); **Cancel** takes its place during a countdown; both are gone while the
       window is closing its sessions. Reconnect checked on 2026-11-05 from the scene: the
       first build threw "The RDP control has not been created yet (no window handle)",
       fixed by forcing the handle before `CreateControl()`.
-- [ ] Once connected, the desktop **replaces the scene** at the size the area had — no
+- [x] Once connected, the desktop **replaces the scene** at the size the area had — no
       renegotiated resolution, no black frame — and the scene comes back on the next
-      disconnect with the reason under the state.
-- [ ] A **detached window** shows the same scene in its own area, and full screen leaves
-      on a drop as before.
-- [ ] The session bar reads **name, host:port, pill** for the active tab, and the bar's
-      own sentence (`Connecting…`, `Closing…`) where the pill has no word.
+      disconnect with the reason under the state. Reported fine on 2026-11-05.
+- [x] A **detached window** shows the same scene in its own area, and full screen leaves
+      on a drop as before. Reported fine on 2026-11-05.
+- [x] The session bar reads **name, host:port, pill** for the active tab, and the bar's
+      own sentence (`Connecting…`, `Closing…`) where the pill has no word. Seen on 2026-11-05.
 - [x] **Closing the window with two connected sessions**, three times over: every pass ends
       with `All sessions closed` in the probe log and the window goes. Three passes on
       2026-11-05 at 10:17, each session's control destroyed in under 150 ms. On 2026-11-05 the
