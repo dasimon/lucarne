@@ -2,6 +2,31 @@
 
 All notable changes to Lucarne (formerly RemoteDeck) are recorded here. Dates are ISO 8601.
 
+## Unreleased
+
+The session area has a face of its own while there is no desktop to show.
+
+### Session scene
+
+- **What was wrong**: a session that was disconnected, failed, between two attempts or still
+  connecting left the Remote Desktop control painting a blank — white, over most of the window.
+- **What shows instead**: the machine, as its row shows it — the badge with its initials on the
+  group's hue, the name, the host and port — then the state with its dot, Windows' own wording
+  of the failure when there is one, and *Reconnect* (or *Cancel* during a countdown). The same
+  scene appears in a detached window. The control is hidden, never collapsed, so the resolution
+  it negotiates on connecting is still the area's.
+- **Teardown**: a control is never hidden once its session is closing. Hidden in the dispatcher
+  turn before its disposal, it hung the application inside its own `WM_DESTROY` (seen on
+  2026-11-05, read from a dump of the frozen process). The log now names the control's
+  destruction, so a hang of that family is pinned to its last line.
+- **Session bar**: the active tab is described as a name, an address and the pane's state pill
+  rather than as one sentence; the sentence remains for the states the pill has no word for.
+
+### Connection pane
+
+- A row whose host is its name again no longer prints it twice.
+- Group headers are labels over their rows — hue, name, count — rather than chips.
+
 ## 1.0.0 — 2026-11-01
 
 RemoteDeck is now Lucarne, carries its data and updates over by itself, and downloads in half the size.

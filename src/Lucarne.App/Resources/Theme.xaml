@@ -104,7 +104,14 @@
     <sys:Double x:Key="RdFontSm">11</sys:Double>
     <sys:Double x:Key="RdFontMd">12</sys:Double>
     <sys:Double x:Key="RdFont">14</sys:Double>
+    <!-- Lg is the one display size, added on 2026-11-04 with the session scene: the name of the
+         machine the user is looking at, standing alone in the middle of the session area, and the
+         initials on the scene's badge. Nothing in a bar, a row or a form may take it. -->
+    <sys:Double x:Key="RdFontLg">20</sys:Double>
     <sys:Double x:Key="RdGlyphHero">40</sys:Double>
+    <!-- The scene's badge: the pane's 24 px badge at the scale of a session area, and the one
+         place that badge is drawn large. Not type, like the hero glyph: a box the monogram sits in. -->
+    <sys:Double x:Key="RdBadgeHero">56</sys:Double>
 
     <!-- A keyboard shortcut, drawn as the key it is: a raised cap whose thicker bottom edge is the
          whole illusion, monospaced so "Ctrl+W" and "Ctrl+N" stack to the same width. Born in the

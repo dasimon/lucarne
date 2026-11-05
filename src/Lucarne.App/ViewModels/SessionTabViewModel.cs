@@ -63,9 +63,14 @@ internal sealed partial class SessionTabViewModel : ObservableObject, IDisposabl
     /// <summary>The connection's group, which colours the square before the caption.</summary>
     public string GroupName { get; }
 
+    /// <summary>The two letters on the session scene's badge: the same ones the connection's row
+    /// carries, so the scene and the row are recognisably the same machine.</summary>
+    public string Monogram => Lucarne.Core.Model.Monogram.Of(Title);
+
     /// <summary>Mirror of <see cref="RdpSession.State"/>.</summary>
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(CanReconnect))]
+    [NotifyPropertyChangedFor(nameof(CanCancelRetry))]
     [NotifyPropertyChangedFor(nameof(CanFullScreen))]
     private SessionState _state;
 
@@ -77,6 +82,16 @@ internal sealed partial class SessionTabViewModel : ObservableObject, IDisposabl
 
     /// <summary>One short line describing the state, for the session bar.</summary>
     [ObservableProperty] private string _stateText = "";
+
+    /// <summary>
+    /// Windows' own wording of the failure under <see cref="StateText"/>, for the session scene:
+    /// the one text that names the actual cause. Empty while the session is up or connecting, and
+    /// for a disconnect that is not an error — <c>GetErrorDescription()</c> answers "an internal
+    /// error has occurred" for an ordinary log-off, which would alarm for nothing. The same rule
+    /// <see cref="Controls.SessionStatusPresenter"/> applies to the InfoBar, so the scene and the
+    /// bar never disagree about whether there is a detail to show.
+    /// </summary>
+    [ObservableProperty] private string _detailText = "";
 
     /// <summary>True for the tab whose session is visible. Drives the strip's active styling.</summary>
     [ObservableProperty] private bool _isActive;
@@ -110,6 +125,10 @@ internal sealed partial class SessionTabViewModel : ObservableObject, IDisposabl
     /// tab; it is said once here so a menu aimed at a background tab cannot drift from the buttons.
     /// </summary>
     public bool CanReconnect => !IsReconnectPending && State is SessionState.Failed or SessionState.Idle;
+
+    /// <summary>A retry is pending or running, and can still be called off. Exactly the states where
+    /// the session bar offers <em>Cancel</em>, said once so the scene cannot drift from the bar.</summary>
+    public bool CanCancelRetry => State is SessionState.Interrupted or SessionState.Reconnecting;
 
     /// <summary>A session already in a window of its own has nowhere to be detached to.</summary>
     public bool CanDetach => !IsDetached;
@@ -147,7 +166,16 @@ internal sealed partial class SessionTabViewModel : ObservableObject, IDisposabl
             ? Text.Of(Strings.Session_Countdown, remaining.TotalSeconds.ToString("F0", CultureInfo.CurrentCulture))
             : "";
         StateText = DescribeState();
+        DetailText = DescribeDetail();
     }
+
+    // No disconnect description at all — an attempt that never reached the wire — still has a
+    // message worth reading: the exception's. Only an ordinary end withholds it.
+    private string DescribeDetail() =>
+        _session.State is SessionState.Idle or SessionState.Interrupted or SessionState.Failed
+        && _session.LastDisconnect is not { Category: DisconnectCategory.NotAnError }
+            ? _session.LastWindowsDescription ?? ""
+            : "";
 
     private static string BrushKeyFor(SessionState state) => state switch
     {

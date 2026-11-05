@@ -1,0 +1,138 @@
+<UserControl x:Class="Lucarne.App.Views.SessionScene"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
+             xmlns:controls="clr-namespace:Lucarne.App.Controls"
+             xmlns:res="clr-namespace:Lucarne.App.Resources"
+             Focusable="False">
+    <!-- What the session area shows while the remote desktop has nothing to show: the machine,
+         large, and what is happening to it. The control paints a blank — white, measured on
+         2026-11-04 — in every state but Connected, and this scene is drawn over the host's place
+         while SessionsViewModel keeps that host hidden. One scene for the docked area and for a
+         detached window: a session says the same thing wherever it is shown.
+
+         DataContext is the SessionTabViewModel. Everything here binds to it; the two buttons are
+         the only things the scene does, and they are relayed to the window as events — the
+         reconnection protocol is the window's, with its VPN gate, not the scene's.
+
+         Its own surface rather than the black ground beneath: no theme text colour reads on
+         black in both themes, and the ground is the desktop's, not ours. A closed shutter, in the
+         window's own materials: the lifted surface and the hairline the pane and the editor use. -->
+    <UserControl.Resources>
+        <controls:GroupBrushConverter x:Key="GroupBrush" />
+
+        <!-- The status dot, as the strip and the detached caption draw it: the view-model publishes
+             a resource key, and the key becomes a brush here so the dot follows a theme switch. -->
+        <Style x:Key="StatusDotStyle" TargetType="Ellipse">
+            <Setter Property="Width" Value="8" />
+            <Setter Property="Height" Value="8" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+            <Setter Property="Margin" Value="0,0,8,0" />
+            <Setter Property="Fill" Value="{DynamicResource RdTextMuted}" />
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding StatusBrushKey}" Value="SystemFillColorSuccessBrush">
+                    <Setter Property="Fill" Value="{DynamicResource RdOk}" />
+                </DataTrigger>
+                <DataTrigger Binding="{Binding StatusBrushKey}" Value="SystemFillColorCautionBrush">
+                    <Setter Property="Fill" Value="{DynamicResource RdWarn}" />
+                </DataTrigger>
+                <DataTrigger Binding="{Binding StatusBrushKey}" Value="SystemFillColorCriticalBrush">
+                    <Setter Property="Fill" Value="{DynamicResource RdBad}" />
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+    </UserControl.Resources>
+
+    <Border CornerRadius="{StaticResource RdRadius}"
+            Background="{DynamicResource RdSurface1}"
+            BorderBrush="{DynamicResource RdBorder}" BorderThickness="1">
+        <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center"
+                    MaxWidth="440" Margin="24">
+
+            <!-- The badge, as on the connection's row and at the size of the area: initials on the
+                 group's hue, a quiet surface when there is no group. The same two letters as the
+                 row's, so the scene and the row are recognisably the same machine. -->
+            <Border Width="{StaticResource RdBadgeHero}" Height="{StaticResource RdBadgeHero}"
+                    HorizontalAlignment="Center"
+                    CornerRadius="{StaticResource RdRadiusLg}"
+                    Background="{Binding GroupName, Converter={StaticResource GroupBrush}, TargetNullValue={StaticResource RdSurface2}}">
+                <TextBlock Text="{Binding Monogram}"
+                           FontSize="{StaticResource RdFontLg}" FontWeight="SemiBold"
+                           HorizontalAlignment="Center" VerticalAlignment="Center">
+                    <TextBlock.Style>
+                        <Style TargetType="TextBlock">
+                            <Setter Property="Foreground" Value="{DynamicResource RdOnGroup}" />
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding GroupName, Converter={StaticResource GroupBrush}}" Value="{x:Null}">
+                                    <Setter Property="Foreground" Value="{DynamicResource RdTextMuted}" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </TextBlock.Style>
+                </TextBlock>
+            </Border>
+
+            <!-- The name at the display size, and the address under it in the muted token: the
+                 same two lines the tab's caption and tooltip carry, one above the other. -->
+            <TextBlock Text="{Binding Title}"
+                       Margin="0,16,0,0"
+                       FontSize="{StaticResource RdFontLg}" FontWeight="SemiBold"
+                       Foreground="{DynamicResource RdText}"
+                       HorizontalAlignment="Center" TextAlignment="Center"
+                       TextTrimming="CharacterEllipsis" />
+            <TextBlock Text="{Binding Subtitle}"
+                       Margin="0,2,0,0"
+                       Foreground="{DynamicResource RdTextMuted}"
+                       HorizontalAlignment="Center" TextAlignment="Center"
+                       TextTrimming="CharacterEllipsis" />
+
+            <!-- The state, said twice: the dot's colour and the sentence. StateText is the session
+                 bar's own line — disconnected and why, the countdown and the attempt, the failure
+                 — so the scene never tells a different story from the bar. -->
+            <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,20,0,0">
+                <Ellipse Style="{StaticResource StatusDotStyle}" />
+                <TextBlock Text="{Binding StateText}"
+                           Foreground="{DynamicResource RdText}"
+                           VerticalAlignment="Center" TextAlignment="Center" TextWrapping="Wrap" />
+            </StackPanel>
+
+            <!-- Windows' own wording of the failure, when there is one worth reading. Collapsed
+                 rather than empty so the buttons do not drift down by a blank line. -->
+            <TextBlock Text="{Binding DetailText}"
+                       Margin="0,6,0,0"
+                       FontSize="{StaticResource RdFontMd}"
+                       Foreground="{DynamicResource RdTextMuted}"
+                       HorizontalAlignment="Center" TextAlignment="Center" TextWrapping="Wrap">
+                <TextBlock.Style>
+                    <Style TargetType="TextBlock">
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding DetailText}" Value="">
+                                <Setter Property="Visibility" Value="Collapsed" />
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </TextBlock.Style>
+            </TextBlock>
+
+            <!-- The one thing to do. Primary: in the whole area there is nothing else to click, and
+                 the session bar's own Reconnect stays secondary so the two are not twins. Cancel
+                 takes its place while a retry is pending; the code-behind shows one or the other,
+                 and neither while the window is closing — the same rule the bars apply. -->
+            <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,24,0,0">
+                <ui:Button x:Name="ReconnectButton"
+                           Appearance="Primary"
+                           Visibility="Collapsed"
+                           IsEnabled="{Binding CanReconnect}"
+                           Content="{x:Static res:Strings.Shell_Reconnect}"
+                           Icon="{ui:SymbolIcon ArrowClockwise24}"
+                           ToolTip="{x:Static res:Strings.Shell_ReconnectToolTip}"
+                           Click="OnReconnectClick" />
+                <ui:Button x:Name="CancelRetryButton"
+                           Visibility="Collapsed"
+                           Content="{x:Static res:Strings.Common_Cancel}"
+                           ToolTip="{x:Static res:Strings.Shell_CancelRetryToolTip}"
+                           Click="OnCancelRetryClick" />
+            </StackPanel>
+        </StackPanel>
+    </Border>
+</UserControl>

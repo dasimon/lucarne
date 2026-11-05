@@ -360,16 +360,13 @@
                     <GroupStyle>
                         <GroupStyle.HeaderTemplate>
                             <DataTemplate>
-                                <!-- Not RdSurface3: measured, it lands one level off the pane's own
-                                     ground in the light theme — the very reason the focus state
-                                     above dropped it. The subtle fill reads in both (9 levels light,
-                                     13 dark), and the hairline is what actually draws the chip:
-                                     15 and 16, the same header whichever theme is on. -->
-                                <Border Background="{DynamicResource RdSurface2}"
-                                        BorderBrush="{DynamicResource RdBorder}"
-                                        BorderThickness="1"
-                                        CornerRadius="{StaticResource RdRadiusSm}"
-                                        Padding="8,3" Margin="6,6,6,2">
+                                <!-- No chip, since 2026-11-04: a header is a label over its rows, not
+                                     a surface between them. The hue square, the name and the count
+                                     say everything the fill and the hairline used to frame, and the
+                                     pane keeps two filled shapes only — the badges and the selected
+                                     row — so a fill always means something. The air above (10 px,
+                                     against 4 between rows) is what parts one group from the next. -->
+                                <Border Padding="8,2,8,3" Margin="6,10,6,0">
                                     <StackPanel Orientation="Horizontal">
                                         <!-- The group's hue, the one its rows' badges carry. Favorites and
                                              Ungrouped are not groups and have none. -->
@@ -451,9 +448,15 @@
 
                             <!-- Muted through the token rather than through Opacity: the host must
                                  recede by the same amount in both themes, and 0.7 of white does not
-                                 recede like 0.7 of black. -->
+                                 recede like 0.7 of black.
+
+                                 Collapsed when the host is the name again (ShowsHost): nine rows out
+                                 of seventeen said their name twice, and a column that repeats the
+                                 one beside it is noise, not information. Hidden rather than blank so
+                                 the name takes the width back. -->
                             <controls:HighlightTextBlock Grid.Column="3"
                                                          Margin="8,0,0,0"
+                                                         Visibility="{Binding ShowsHost, Converter={StaticResource BoolToVisibility}}"
                                                          Text="{Binding Host}"
                                                          Ranges="{Binding Match.HostRanges}"
                                                          VerticalAlignment="Center"

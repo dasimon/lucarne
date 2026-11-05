@@ -207,6 +207,32 @@ probe has not been run. The lot is not closed until this section is.
       reconnecting, **red** failed, neutral otherwise.
 - [ ] Drag a tab onto another position: the order changes and the sessions survive it.
 
+### Session scene (2026-11-04)
+
+- [x] A tab whose session is **disconnected, failed, interrupted or connecting** shows the
+      scene over the session area — badge with the row's initials on the group's hue,
+      name, host and port, the state with its dot — and **never the control's white
+      blank**. Checked on 2026-11-04 on a failed tab, dark theme, docked.
+- [ ] The scene reads in the **light theme**: text and badge on the lifted surface, the
+      hairline visible against the window.
+- [x] **Reconnect** on the scene behaves exactly as the bar's *Reconnect* (VPN gate
+      included); **Cancel** takes its place during a countdown; both are gone while the
+      window is closing its sessions. Reconnect checked on 2026-11-05 from the scene: the
+      first build threw "The RDP control has not been created yet (no window handle)",
+      fixed by forcing the handle before `CreateControl()`.
+- [ ] Once connected, the desktop **replaces the scene** at the size the area had — no
+      renegotiated resolution, no black frame — and the scene comes back on the next
+      disconnect with the reason under the state.
+- [ ] A **detached window** shows the same scene in its own area, and full screen leaves
+      on a drop as before.
+- [ ] The session bar reads **name, host:port, pill** for the active tab, and the bar's
+      own sentence (`Connecting…`, `Closing…`) where the pill has no word.
+- [x] **Closing the window with two connected sessions**, three times over: every pass ends
+      with `All sessions closed` in the probe log and the window goes. Three passes on
+      2026-11-05 at 10:17, each session's control destroyed in under 150 ms. On 2026-11-05 the
+      second session of a pass froze the application inside the control's teardown, the host
+      having been hidden the turn before; the host is now left alone from *Closing* on.
+
 ### Dynamic resolution (D6)
 
 - [ ] On a connection in **Dynamic** display mode, resize the window (or drag the

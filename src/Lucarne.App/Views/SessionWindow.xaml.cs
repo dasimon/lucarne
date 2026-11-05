@@ -97,6 +97,9 @@ internal sealed partial class SessionWindow : Wpf.Ui.Controls.FluentWindow
 
         _tab.Changed += OnTabChanged;
         _tab.Session.FullScreenRequested += OnFullScreenRequested;
+        // The scene's two buttons are the caption's two buttons: same handlers, same gate.
+        Scene.ReconnectRequested += ReconnectSession;
+        Scene.CancelRequested += () => _tab.Session.CancelReconnect();
 
         Closing += OnClosing;
 
@@ -114,7 +117,7 @@ internal sealed partial class SessionWindow : Wpf.Ui.Controls.FluentWindow
 
     /// <summary>Where the shell puts the session's <c>WindowsFormsHost</c>, and the element the
     /// session measures for its dynamic resolution.</summary>
-    public System.Windows.Controls.Decorator HostArea => HostAreaBorder;
+    public System.Windows.Controls.Decorator HostArea => HostSlot;
 
     /// <summary>Raised by the <em>Reattach</em> button. The shell moves the host back into the
     /// docked container; the window itself does nothing.</summary>
@@ -542,6 +545,7 @@ internal sealed partial class SessionWindow : Wpf.Ui.Controls.FluentWindow
             : Visibility.Collapsed;
         DiagnosticsButton.IsEnabled = live;
         _bar?.SetLive(live);
+        Scene.Show(_tab, live);
     }
 
     /// <summary>Reports the session's state in the one place Lucarne reports anything. Wording,
