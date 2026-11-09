@@ -508,7 +508,8 @@ have to be fetched and checked by hand each time. It talks to GitHub, and only G
 - **What it asks.** Ten seconds after the window opens, then once a day, it reads the
   latest release of `dasimon/lucarne` from the GitHub API. Only a tag of the form
   `vMAJOR.MINOR.PATCH` that is higher than the running version is offered, as a banner at
-  the bottom of the connection pane. *About* → *Check for updates* asks on demand.
+  the bottom of the connection pane. With the pane folded, the session bar shows *Update
+  available*, which unfolds it. *About* → *Check for updates* asks on demand.
   A build that was not stamped by the release workflow (a local build) asks nothing.
 - **What it checks.** It downloads `Lucarne.exe` and the `SHA256SUMS` file of that release
   over HTTPS, from GitHub's own hosts only, with a size cap on each. The executable is

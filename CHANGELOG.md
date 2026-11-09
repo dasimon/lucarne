@@ -2,6 +2,16 @@
 
 All notable changes to Lucarne (formerly RemoteDeck) are recorded here. Dates are ISO 8601.
 
+## 1.2.1 — 2026-11-09
+
+An available update can be seen with the connection pane folded.
+
+- **What was wrong**: the update banner sits at the bottom of the connection pane, so that it
+  never resizes a session. With the pane folded nothing said an update existed.
+- **What shows instead**: *Update available* in the session bar, next to the button that folds
+  the pane. It names the version in its tooltip and unfolds the pane on the banner. It goes
+  away when the pane is open or the banner is hidden.
+
 ## 1.2.0 — 2026-11-09
 
 A passkey asked for in the remote session can be answered on the PC in front of you.

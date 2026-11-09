@@ -1169,8 +1169,9 @@ Never test against a real release of `dasimon/lucarne` from the machine in daily
       nothing. With *Reopen last session at startup* on, the session comes back after the restart.
 - [ ] **The UAC prompt can open behind the window**: the banner stays on "Installing…" until it
       is answered, with no timeout; the prompt is reachable from the taskbar.
-- [ ] **Folded pane.** With the connection pane folded (`Ctrl+B`), the banner is not shown; unfolded,
-      it is back.
+- [ ] **Folded pane.** With the connection pane folded (`Ctrl+B`), the session bar shows *Update
+      available*, with the version in its tooltip; no session resizes when it appears. Clicking it
+      unfolds the pane on the banner, and the button goes. Hiding the banner hides the button too.
 - [ ] **Hiding.** The close button on the banner hides that version until the next launch. *About*
       → *Check for updates* shows it again.
 - [ ] **Manual check.** *About* → *Check for updates*: "You have the latest version." on the newest
