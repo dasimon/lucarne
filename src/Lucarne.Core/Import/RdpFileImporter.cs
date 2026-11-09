@@ -59,6 +59,7 @@ public static class RdpFileImporter
         var redirectClipboard = true;
         var redirectPrinters = false;
         var redirectAudio = false;
+        var redirectWebAuthn = true;
         var useWebAccount = false;
 
         foreach (var raw in lines)
@@ -129,6 +130,10 @@ public static class RdpFileImporter
                     break;
                 case "redirectprinters":
                     if (TryBool(value, out var printers)) redirectPrinters = printers;
+                    else unsupported++;
+                    break;
+                case "redirectwebauthn":
+                    if (TryBool(value, out var webAuthn)) redirectWebAuthn = webAuthn;
                     else unsupported++;
                     break;
                 case "drivestoredirect":
@@ -205,6 +210,7 @@ public static class RdpFileImporter
             RedirectClipboard = redirectClipboard,
             RedirectPrinters = redirectPrinters,
             RedirectAudio = redirectAudio,
+            RedirectWebAuthn = redirectWebAuthn,
             UseWebAccount = useWebAccount,
             AuthenticationLevel = authenticationLevel,
             Source = fileName,

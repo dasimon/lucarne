@@ -46,6 +46,9 @@ public sealed record ImportCandidate
     /// <summary>Audio played on this machine.</summary>
     public bool RedirectAudio { get; init; }
 
+    /// <summary>WebAuthn requests answered on this machine; on by default, like a new connection.</summary>
+    public bool RedirectWebAuthn { get; init; } = true;
+
     /// <summary>Entra ID (web account) authentication.</summary>
     public bool UseWebAccount { get; init; }
 
