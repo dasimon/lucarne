@@ -41,6 +41,7 @@ public static class ConnectionCopy
             RedirectDrives = source.RedirectDrives,
             RedirectPrinters = source.RedirectPrinters,
             RedirectAudio = source.RedirectAudio,
+            RedirectWebAuthn = source.RedirectWebAuthn,
             AdminSession = source.AdminSession,
             UseWebAccount = source.UseWebAccount,
             WebAccountUpn = source.WebAccountUpn,

@@ -102,6 +102,12 @@ public static class SchemaMigrator
         """
         ALTER TABLE Connection ADD COLUMN PassShortcuts INTEGER NOT NULL DEFAULT 0;
         """,
+        // V8 — answer the remote session's WebAuthn requests on this machine. On for every existing
+        // connection, unlike V5 and V7: it is what Remote Desktop Connection does when a connection
+        // says nothing (redirectwebauthn defaults to 1), and each row can still turn it off.
+        """
+        ALTER TABLE Connection ADD COLUMN RedirectWebAuthn INTEGER NOT NULL DEFAULT 1;
+        """,
     ];
 
     public static int GetVersion(SqliteConnection connection)

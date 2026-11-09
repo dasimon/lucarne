@@ -9,7 +9,8 @@ public sealed class ConnectionRepository(SqliteDatabase db)
     private const string Columns = """
         Id, Name, Host, Port, GroupName, CredentialId, IsFavorite, DisplayMode, FixedWidth, FixedHeight,
         RedirectClipboard, RedirectDrives, RedirectPrinters, RedirectAudio, AdminSession, UseWebAccount,
-        AuthenticationLevel, Notes, VpnProfile, LastConnectedUtc, CreatedUtc, WebAccountUpn, AutoRaiseVpn, PassShortcuts
+        AuthenticationLevel, Notes, VpnProfile, LastConnectedUtc, CreatedUtc, WebAccountUpn, AutoRaiseVpn, PassShortcuts,
+        RedirectWebAuthn
         """;
 
     public long Insert(Connection x)
@@ -19,10 +20,12 @@ public sealed class ConnectionRepository(SqliteDatabase db)
         var cmd = c.Cmd("""
             INSERT INTO Connection (Name, Host, Port, GroupName, CredentialId, IsFavorite, DisplayMode, FixedWidth, FixedHeight,
                 RedirectClipboard, RedirectDrives, RedirectPrinters, RedirectAudio, AdminSession, UseWebAccount,
-                AuthenticationLevel, Notes, VpnProfile, LastConnectedUtc, CreatedUtc, WebAccountUpn, AutoRaiseVpn, PassShortcuts)
+                AuthenticationLevel, Notes, VpnProfile, LastConnectedUtc, CreatedUtc, WebAccountUpn, AutoRaiseVpn, PassShortcuts,
+                RedirectWebAuthn)
             VALUES ($name, $host, $port, $group, $cred, $fav, $mode, $fw, $fh,
                 $clip, $drives, $printers, $audio, $admin, $web,
-                $auth, $notes, $vpn, $last, $created, $upn, $autovpn, $pass);
+                $auth, $notes, $vpn, $last, $created, $upn, $autovpn, $pass,
+                $webauthn);
             SELECT last_insert_rowid();
             """);
         Bind(cmd, x);
@@ -40,7 +43,8 @@ public sealed class ConnectionRepository(SqliteDatabase db)
                 IsFavorite = $fav, DisplayMode = $mode, FixedWidth = $fw, FixedHeight = $fh,
                 RedirectClipboard = $clip, RedirectDrives = $drives, RedirectPrinters = $printers, RedirectAudio = $audio,
                 AdminSession = $admin, UseWebAccount = $web, AuthenticationLevel = $auth,
-                Notes = $notes, VpnProfile = $vpn, LastConnectedUtc = $last, WebAccountUpn = $upn, AutoRaiseVpn = $autovpn, PassShortcuts = $pass
+                Notes = $notes, VpnProfile = $vpn, LastConnectedUtc = $last, WebAccountUpn = $upn, AutoRaiseVpn = $autovpn, PassShortcuts = $pass,
+                RedirectWebAuthn = $webauthn
             WHERE Id = $id
             """);
         Bind(cmd, x);
@@ -126,6 +130,7 @@ public sealed class ConnectionRepository(SqliteDatabase db)
         cmd.Add("$upn", string.IsNullOrWhiteSpace(x.WebAccountUpn) ? null : x.WebAccountUpn.Trim());
         cmd.Add("$autovpn", x.AutoRaiseVpn ? 1 : 0);
         cmd.Add("$pass", x.PassShortcuts ? 1 : 0);
+        cmd.Add("$webauthn", x.RedirectWebAuthn ? 1 : 0);
     }
 
     private static Connection Read(SqliteDataReader r) => new()
@@ -154,5 +159,6 @@ public sealed class ConnectionRepository(SqliteDatabase db)
         WebAccountUpn = r.GetStringOrNull(21),
         AutoRaiseVpn = r.GetInt32(22) != 0,
         PassShortcuts = r.GetInt32(23) != 0,
+        RedirectWebAuthn = r.GetInt32(24) != 0,
     };
 }
