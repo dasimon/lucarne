@@ -1194,7 +1194,10 @@ an RDP session, "local" is itself remote.
 *The first two boxes were ticked on 2026-11-09 on David's word, from a home PC to a Windows 11 PC
 at the office, with a passkey on an Android phone through the QR code. Android then reported "an
 error occurred" although the sign-in had completed; it does the same with `mstsc`, so it is not
-Lucarne's. The fourth and sixth were read from the log and the database of a real upgrade.*
+Lucarne's. The fourth and sixth were read from the log and the database of a real upgrade. The
+fifth and seventh were checked the same day on the real editor window and import view model over a
+throw-away database, in English and French; the tooltip was opened by code rather than by hovering,
+and the import window itself was not shown.*
 
 - [x] Session to a **Windows 11** machine, switch **on**: open `login.microsoft.com`, choose a
       passkey. The Windows Security prompt appears **on the local PC**, over the session, and
@@ -1204,11 +1207,11 @@ Lucarne's. The fourth and sixth were read from the log and the database of a rea
       session connects normally and the prompt stays on the remote PC.
 - [x] Switch on: the log has `[webauthn] PluginDlls set to …\WebAuthn.dll`, and no
       `PluginDlls refused`. Connecting shows **no dialog** it did not show before.
-- [ ] Editor, in English and French: the label reads like `mstsc`'s and fits its row, the
+- [x] Editor, in English and French: the label reads like `mstsc`'s and fits its row, the
       tooltip shows over the row, and the section's summary names WebAuthn only while it is on.
 - [x] Upgrading a V7 database: `connections.v7.bak` is written, every connection keeps its
       settings and has the switch on.
-- [ ] Importing a `.rdp` with `redirectwebauthn:i:0`: the connection has the switch off and the
+- [x] Importing a `.rdp` with `redirectwebauthn:i:0`: the connection has the switch off and the
       preview does not count that line as ignored.
 
 ## Build prerequisites (any lot)

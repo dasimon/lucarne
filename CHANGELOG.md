@@ -2,7 +2,9 @@
 
 All notable changes to Lucarne (formerly RemoteDeck) are recorded here. Dates are ISO 8601.
 
-## Unreleased
+## 1.2.0 — 2026-11-09
+
+A passkey asked for in the remote session can be answered on the PC in front of you.
 
 ### WebAuthn redirection
 
