@@ -171,12 +171,27 @@
                      accent, and the fold of a side pane was the loudest thing on the screen — the
                      only accent fill in view, louder than New and than the session. The pane
                      itself shows its state; the hamburger only ever means "fold or unfold". -->
-                <ui:Button x:Name="PaneToggle" Grid.Column="0"
-                           Width="36" Height="32" Padding="0" Margin="0,0,8,0"
-                           Icon="{ui:SymbolIcon Navigation24}"
-                           ToolTip="{x:Static res:Strings.Shell_PaneToggleToolTip}"
-                           AutomationProperties.Name="{x:Static res:Strings.Shell_PaneToggleToolTip}"
-                           Click="OnPaneToggleClick" />
+                <StackPanel Grid.Column="0" Orientation="Horizontal">
+                    <ui:Button x:Name="PaneToggle"
+                               Width="36" Height="32" Padding="0" Margin="0,0,8,0"
+                               Icon="{ui:SymbolIcon Navigation24}"
+                               ToolTip="{x:Static res:Strings.Shell_PaneToggleToolTip}"
+                               AutomationProperties.Name="{x:Static res:Strings.Shell_PaneToggleToolTip}"
+                               Click="OnPaneToggleClick" />
+                    <!-- The update banner lives in the pane, so a folded pane would hide that there
+                         is one. Here because this bar's height never changes: no session resizes.
+                         It only unfolds the pane; the banner stays the one place an update runs. -->
+                    <ui:Button x:Name="UpdateHintButton"
+                               Height="32" Margin="0,0,8,0"
+                               Visibility="Collapsed"
+                               Content="{x:Static res:Strings.Update_HintButton}"
+                               AutomationProperties.Name="{x:Static res:Strings.Update_HintButton}"
+                               Click="OnUpdateHintClick">
+                        <ui:Button.Icon>
+                            <ui:SymbolIcon Symbol="ArrowDownload24" Foreground="{DynamicResource RdAccent}" />
+                        </ui:Button.Icon>
+                    </ui:Button>
+                </StackPanel>
 
                 <!-- What the active tab is, said as three things rather than one sentence: the
                      name in the text colour, the address in the muted one, the state as the pane's

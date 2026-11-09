@@ -1194,6 +1194,9 @@ Espaces déjà présents, laissés tels quels : {4}</value>
   <data name="Update_Install" xml:space="preserve">
     <value>Mettre à jour</value>
   </data>
+  <data name="Update_HintButton" xml:space="preserve">
+    <value>Mise à jour disponible</value>
+  </data>
   <data name="Update_ReleaseNotes" xml:space="preserve">
     <value>Nouveautés</value>
   </data>

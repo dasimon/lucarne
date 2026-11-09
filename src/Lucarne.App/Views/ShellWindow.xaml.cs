@@ -425,6 +425,7 @@ public partial class ShellWindow : Wpf.Ui.Controls.FluentWindow
         }
 
         _paneCollapsed = collapsed;
+        RefreshUpdateHint();
     }
 
     /// <summary>The splitter is the only way the width changes, so it is also where it is persisted.</summary>
@@ -2869,11 +2870,14 @@ public partial class ShellWindow : Wpf.Ui.Controls.FluentWindow
         if (release is null || (!working && release.Version == _updateDismissed))
         {
             UpdateBar.Visibility = Visibility.Collapsed;
+            RefreshUpdateHint();
             return;
         }
 
         UpdateBar.Visibility = Visibility.Visible;
         UpdateTitle.Text = Text.Of(installed ? Strings.Update_InstalledTitle : Strings.Update_AvailableTitle, release.Version);
+        UpdateHintButton.ToolTip = UpdateTitle.Text;
+        RefreshUpdateHint();
 
         string? message = phase switch
         {
@@ -2908,6 +2912,12 @@ public partial class ShellWindow : Wpf.Ui.Controls.FluentWindow
         UpdateNotesLink.NavigateUri = page;
         UpdateNotes.Visibility = page is null ? Visibility.Collapsed : Visibility.Visible;
     }
+
+    /// <summary>The session bar's way of saying there is a banner the folded pane is hiding.</summary>
+    private void RefreshUpdateHint() => UpdateHintButton.Visibility =
+        _paneCollapsed && UpdateBar.Visibility == Visibility.Visible ? Visibility.Visible : Visibility.Collapsed;
+
+    private void OnUpdateHintClick(object sender, RoutedEventArgs e) => ApplyPaneState(false);
 
     private async void OnUpdateInstallClick(object sender, RoutedEventArgs e)
     {
