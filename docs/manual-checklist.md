@@ -1188,19 +1188,25 @@ Never test against a real release of `dasimon/lucarne` from the machine in daily
 The control has no WebAuthn setting. Lucarne passes `System32\WebAuthn.dll` to `PluginDlls`, as
 `mstsc` does, a use Microsoft does not document. Measured on 2026-11-09 against a closed port
 (control 10.0.26100): the DLL loads at `Connect` only when named there. What follows is what
-that measurement could not show.
+that measurement could not show. Run the sign-in tests from a PC you are sitting at: from inside
+an RDP session, "local" is itself remote.
 
-- [ ] Session to a **Windows 11** machine, switch **on**: open `login.microsoft.com`, choose a
+*The first two boxes were ticked on 2026-11-09 on David's word, from a home PC to a Windows 11 PC
+at the office, with a passkey on an Android phone through the QR code. Android then reported "an
+error occurred" although the sign-in had completed; it does the same with `mstsc`, so it is not
+Lucarne's. The fourth and sixth were read from the log and the database of a real upgrade.*
+
+- [x] Session to a **Windows 11** machine, switch **on**: open `login.microsoft.com`, choose a
       passkey. The Windows Security prompt appears **on the local PC**, over the session, and
       the sign-in completes with Windows Hello, a local key or a QR code shown locally.
-- [ ] Same test, switch **off**: the prompt stays **on the remote PC**.
+- [x] Same test, switch **off**: the prompt stays **on the remote PC**.
 - [ ] Server where the policy **Do not allow WebAuthn redirection** is enabled, switch on: the
       session connects normally and the prompt stays on the remote PC.
-- [ ] Switch on: the log has `[webauthn] PluginDlls set to …\WebAuthn.dll`, and no
+- [x] Switch on: the log has `[webauthn] PluginDlls set to …\WebAuthn.dll`, and no
       `PluginDlls refused`. Connecting shows **no dialog** it did not show before.
 - [ ] Editor, in English and French: the label reads like `mstsc`'s and fits its row, the
       tooltip shows over the row, and the section's summary names WebAuthn only while it is on.
-- [ ] Upgrading a V7 database: `connections.v7.bak` is written, every connection keeps its
+- [x] Upgrading a V7 database: `connections.v7.bak` is written, every connection keeps its
       settings and has the switch on.
 - [ ] Importing a `.rdp` with `redirectwebauthn:i:0`: the connection has the switch off and the
       preview does not count that line as ignored.
