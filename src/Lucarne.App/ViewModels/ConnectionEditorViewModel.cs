@@ -86,6 +86,7 @@ public sealed partial class ConnectionEditorViewModel : ObservableObject
     [ObservableProperty][NotifyPropertyChangedFor(nameof(RedirectionsSummary))] private bool _redirectDrives;
     [ObservableProperty][NotifyPropertyChangedFor(nameof(RedirectionsSummary))] private bool _redirectPrinters;
     [ObservableProperty][NotifyPropertyChangedFor(nameof(RedirectionsSummary))] private bool _redirectAudio;
+    [ObservableProperty][NotifyPropertyChangedFor(nameof(RedirectionsSummary))] private bool _redirectWebAuthn = true;
     [ObservableProperty][NotifyPropertyChangedFor(nameof(AdvancedSummary))] private bool _adminSession;
     [ObservableProperty][NotifyPropertyChangedFor(nameof(SignInSummary))] private bool _useWebAccount;
     /// <summary>The Entra account (UPN) of a web-account connection, or blank to let the control
@@ -130,7 +131,9 @@ public sealed partial class ConnectionEditorViewModel : ObservableObject
                 RedirectClipboard ? Strings.Editor_RedirectClipboard : null,
                 RedirectDrives ? Strings.Editor_RedirectDrives : null,
                 RedirectPrinters ? Strings.Editor_RedirectPrinters : null,
-                RedirectAudio ? Strings.Editor_RedirectAudio : null);
+                RedirectAudio ? Strings.Editor_RedirectAudio : null,
+                // The standard's own name, the same word in every language.
+                RedirectWebAuthn ? "WebAuthn" : null);
             return on.Length == 0 ? Strings.Editor_SummaryNone : on;
         }
     }
@@ -228,6 +231,7 @@ public sealed partial class ConnectionEditorViewModel : ObservableObject
         connection.RedirectDrives = RedirectDrives;
         connection.RedirectPrinters = RedirectPrinters;
         connection.RedirectAudio = RedirectAudio;
+        connection.RedirectWebAuthn = RedirectWebAuthn;
         connection.AdminSession = AdminSession;
         connection.UseWebAccount = UseWebAccount;
         connection.WebAccountUpn = WebAccountUpn;
@@ -266,6 +270,7 @@ public sealed partial class ConnectionEditorViewModel : ObservableObject
             RedirectDrives = connection?.RedirectDrives ?? false,
             RedirectPrinters = connection?.RedirectPrinters ?? false,
             RedirectAudio = connection?.RedirectAudio ?? false,
+            RedirectWebAuthn = connection?.RedirectWebAuthn ?? true,
             AdminSession = connection?.AdminSession ?? false,
             UseWebAccount = connection?.UseWebAccount ?? false,
             WebAccountUpn = connection?.WebAccountUpn ?? "",
