@@ -96,8 +96,9 @@ it, and clicking outside closes the palette.
 *Import connections…* (from the palette) reads two sources:
 
 - **A folder of `.rdp` files** — every file with a `full address` becomes a proposed
-  connection: host and port, user name, domain, resolution, clipboard, printer, drive
-  and audio redirection, server authentication level. Anything Lucarne does not map
+  connection: host and port, user name, domain, resolution, clipboard, printer, drive,
+  audio and WebAuthn redirection (`redirectwebauthn`, on when the file says nothing, as
+  in Remote Desktop Connection), server authentication level. Anything Lucarne does not map
   is counted and reported as `n unsupported entries ignored`, never guessed.
 - **The machines `mstsc` remembers** — `HKCU\Software\Microsoft\Terminal Server
   Client\Servers`. Those carry a host name and sometimes a user name, nothing else.
@@ -146,6 +147,20 @@ not Lucarne, that holds the token, and Lucarne never sees it.
 
 Importing a `.rdp` file with `enablerdsaadauth:i:1` fills the field from the UPN Remote
 Desktop Connection remembers for that host.
+
+### WebAuthn redirection
+
+When a page in the remote session asks for a passkey, *WebAuthn (Windows Hello or security
+keys)* has this PC answer: Windows Hello, a security key plugged in here, or a QR code shown
+here for a phone nearby. It is in the connection editor under *Redirections* and is on by
+default, as in Remote Desktop Connection, including for connections saved before it existed.
+Turn it off and the request stays on the remote PC.
+
+The Remote Desktop control has no setting for this. Lucarne does what `mstsc` does and asks
+the control to load `WebAuthn.dll` from the Windows system folder, a use Microsoft does not
+document. If Windows refuses it, or the DLL is absent, the log says so under `[webauthn]` and
+the session connects without it. The remote machine's *Do not allow WebAuthn redirection*
+policy still applies.
 
 ### Connections behind a VPN
 
