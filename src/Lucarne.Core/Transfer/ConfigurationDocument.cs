@@ -59,6 +59,11 @@ public sealed record ExportedConnection
     public bool RedirectDrives { get; init; }
     public bool RedirectPrinters { get; init; }
     public bool RedirectAudio { get; init; }
+
+    /// <summary>On when the field is absent: a file exported before it existed gets what such a
+    /// connection got on upgrading, the default of Remote Desktop Connection.</summary>
+    public bool RedirectWebAuthn { get; init; } = true;
+
     public bool AdminSession { get; init; }
     public bool UseWebAccount { get; init; }
     public string? WebAccountUpn { get; init; }
