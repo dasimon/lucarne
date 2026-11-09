@@ -2220,6 +2220,7 @@ public partial class ShellWindow : Wpf.Ui.Controls.FluentWindow
             RedirectDrives: connection.RedirectDrives,
             RedirectPrinters: connection.RedirectPrinters,
             RedirectAudio: connection.RedirectAudio,
+            RedirectWebAuthn: connection.RedirectWebAuthn,
             AuthenticationLevel: connection.AuthenticationLevel,
             DisplayMode: connection.DisplayMode,
             FixedWidth: connection.FixedWidth,

@@ -28,6 +28,7 @@ internal sealed record RdpConnectionSettings(
     bool RedirectDrives,
     bool RedirectPrinters,
     bool RedirectAudio,
+    bool RedirectWebAuthn,
     int? AuthenticationLevel,
     DisplayMode DisplayMode,
     int? FixedWidth,

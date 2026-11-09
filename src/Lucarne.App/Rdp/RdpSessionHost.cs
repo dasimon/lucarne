@@ -188,6 +188,7 @@ internal sealed class RdpSessionHost : IDisposable
         advanced.RedirectClipboard = settings.RedirectClipboard;   // IMsRdpClientAdvancedSettings5
         advanced.RedirectDrives = settings.RedirectDrives;         // IMsRdpClientAdvancedSettings
         advanced.RedirectPrinters = settings.RedirectPrinters;     // IMsRdpClientAdvancedSettings
+        SetWebAuthnRedirection(settings.RedirectWebAuthn);
         advanced.ConnectToAdministerServer = settings.AdminSession; // IMsRdpClientAdvancedSettings6
         // All monitors too: out of full screen, its desktop the size of every monitor is shown
         // shrunk into the window rather than cropped.
@@ -268,6 +269,38 @@ internal sealed class RdpSessionHost : IDisposable
         {
             ProbeLog.Write("display", $"remote monitors unreadable: {ex.GetType().Name} 0x{ex.HResult:X8} {ex.Message}");
             return null;
+        }
+    }
+
+    /// <summary>
+    /// Has this machine answer the remote session's WebAuthn requests, as Remote Desktop Connection
+    /// does for <c>redirectwebauthn:i:1</c>. The control has no setting for it: <c>RedirectWebAuthn</c>
+    /// is refused by <c>IMsRdpExtendedSettings</c>, exactly as an invented name is, and mstsc instead
+    /// passes <c>%SystemRoot%\System32\WebAuthn.dll</c> to <c>PluginDlls</c> (read from mstsc.exe
+    /// 10.0.26100 and measured on the control, 2026-11-09: the DLL loads at Connect only when named
+    /// there). Microsoft documents the property, not this use of it, so a refusal or a missing DLL
+    /// is logged and the session carries on without it. Written either way: the property cannot be
+    /// read back and the control is reused across attempts. The server's "Do not allow WebAuthn
+    /// redirection" policy stays the server's to enforce.
+    /// https://learn.microsoft.com/windows/win32/termserv/imstscadvancedsettings-plugindlls
+    /// </summary>
+    private void SetWebAuthnRedirection(bool on)
+    {
+        var plugin = System.IO.Path.Combine(Environment.SystemDirectory, "WebAuthn.dll");
+        if (on && !System.IO.File.Exists(plugin))
+        {
+            ProbeLog.Write("webauthn", $"{plugin} not found: WebAuthn redirection is not available on this version of Windows");
+            on = false;
+        }
+
+        try
+        {
+            _client.AdvancedSettings9.PluginDlls = on ? plugin : string.Empty;
+            if (on) ProbeLog.Write("webauthn", $"PluginDlls set to {plugin}");
+        }
+        catch (Exception ex)
+        {
+            ProbeLog.Write("webauthn", $"PluginDlls refused: {ex.GetType().Name} 0x{ex.HResult:X8} {ex.Message}");
         }
     }
 
