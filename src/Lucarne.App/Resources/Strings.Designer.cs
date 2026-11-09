@@ -3523,6 +3523,15 @@ namespace Lucarne.App.Resources {
         }
 
         /// <summary>
+        ///   Looks up a localized string similar to Update available.
+        /// </summary>
+        public static string Update_HintButton {
+            get {
+                return ResourceManager.GetString("Update_HintButton", resourceCulture);
+            }
+        }
+
+        /// <summary>
         ///   Looks up a localized string similar to Another Lucarne is running from this same file, possibly another user's on a shared computer. It must be closed before the update can be installed..
         /// </summary>
         public static string Update_OtherInstances {

@@ -1194,6 +1194,9 @@ Workspaces already here, left as they are: {4}</value>
   <data name="Update_Install" xml:space="preserve">
     <value>Update</value>
   </data>
+  <data name="Update_HintButton" xml:space="preserve">
+    <value>Update available</value>
+  </data>
   <data name="Update_ReleaseNotes" xml:space="preserve">
     <value>What's new</value>
   </data>
