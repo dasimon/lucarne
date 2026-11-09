@@ -1206,6 +1206,7 @@ and the import window itself was not shown.*
 - [x] Same test, switch **off**: the prompt stays **on the remote PC**.
 - [ ] Server where the policy **Do not allow WebAuthn redirection** is enabled, switch on: the
       session connects normally and the prompt stays on the remote PC.
+      *Not run for 1.2.0: no server with this policy was available.*
 - [x] Switch on: the log has `[webauthn] PluginDlls set to …\WebAuthn.dll`, and no
       `PluginDlls refused`. Connecting shows **no dialog** it did not show before.
 - [x] Editor, in English and French: the label reads like `mstsc`'s and fits its row, the
