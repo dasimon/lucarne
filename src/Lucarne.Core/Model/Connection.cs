@@ -17,6 +17,12 @@ public sealed class Connection
     public bool RedirectDrives { get; set; }
     public bool RedirectPrinters { get; set; }
     public bool RedirectAudio { get; set; }
+    /// <summary>
+    /// Answer the remote session's WebAuthn requests on this machine: Windows Hello, a security key
+    /// or a passkey here rather than on the remote PC. On by default, as in Remote Desktop Connection
+    /// (<c>redirectwebauthn</c> defaults to 1).
+    /// </summary>
+    public bool RedirectWebAuthn { get; set; } = true;
     public bool AdminSession { get; set; }
     public bool UseWebAccount { get; set; }
     /// <summary>

@@ -1631,6 +1631,24 @@ namespace Lucarne.App.Resources {
         }
 
         /// <summary>
+        ///   Looks up a localized string similar to WebAuthn (Windows Hello or security keys).
+        /// </summary>
+        public static string Editor_RedirectWebAuthn {
+            get {
+                return ResourceManager.GetString("Editor_RedirectWebAuthn", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Windows Hello, security keys and passkeys are handled on this PC..
+        /// </summary>
+        public static string Editor_RedirectWebAuthnToolTip {
+            get {
+                return ResourceManager.GetString("Editor_RedirectWebAuthnToolTip", resourceCulture);
+            }
+        }
+
+        /// <summary>
         ///   Looks up a localized string similar to Advanced.
         /// </summary>
         public static string Editor_SectionAdvanced {

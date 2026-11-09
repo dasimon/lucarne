@@ -26,6 +26,7 @@ public sealed class ConnectionCopyTests
         Id = 42, Name = "WIN02", Host = "contoso-win02", Port = 3390, GroupName = "Prod", CredentialId = 7,
         IsFavorite = true, DisplayMode = DisplayMode.Fixed, FixedWidth = 1920, FixedHeight = 1080,
         RedirectClipboard = false, RedirectDrives = true, RedirectPrinters = true, RedirectAudio = true,
+        RedirectWebAuthn = false,
         AdminSession = true, UseWebAccount = true, WebAccountUpn = "user@contoso.com", AuthenticationLevel = 1,
         VpnProfile = "VPN Contoso", AutoRaiseVpn = true, PassShortcuts = true, Notes = "notes",
         LastConnectedUtc = new DateTime(2026, 9, 1, 0, 0, 0, DateTimeKind.Utc),

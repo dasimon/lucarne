@@ -37,6 +37,38 @@ public sealed class RdpFileImporterTests
         Assert.Contains(c.Warnings, w => w.Contains("1 unsupported entry", StringComparison.Ordinal));
     }
 
+    [Theory]
+    [InlineData("0", false)]
+    [InlineData("1", true)]
+    public void Redirectwebauthn_is_read_and_is_not_an_unsupported_entry(string value, bool expected)
+    {
+        var c = RdpFileImporter.Parse("srv.rdp", ["full address:s:srv", $"redirectwebauthn:i:{value}"]);
+
+        Assert.Equal(expected, c!.RedirectWebAuthn);
+        Assert.DoesNotContain(c.Warnings, w => w.Contains("unsupported", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void A_file_silent_on_redirectwebauthn_keeps_the_documented_default()
+    {
+        var c = RdpFileImporter.Parse("srv.rdp", ["full address:s:srv"]);
+
+        Assert.True(c!.RedirectWebAuthn);
+        Assert.Empty(c.Warnings);
+    }
+
+    [Theory]
+    [InlineData("2")]
+    [InlineData("yes")]
+    [InlineData("")]
+    public void An_invalid_redirectwebauthn_keeps_the_default_and_is_counted(string value)
+    {
+        var c = RdpFileImporter.Parse("srv.rdp", ["full address:s:srv", $"redirectwebauthn:i:{value}"]);
+
+        Assert.True(c!.RedirectWebAuthn);
+        Assert.Equal("1 unsupported entry ignored", Assert.Single(c.Warnings));
+    }
+
     [Fact]
     public void Complete_file_maps_every_verified_key()
     {

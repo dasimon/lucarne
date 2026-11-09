@@ -204,6 +204,29 @@ public sealed class SchemaMigratorTests
     }
 
     [Fact]
+    public void V8_turns_RedirectWebAuthn_on_for_a_row_that_exists_and_copies_the_database_first()
+    {
+        // A real upgrade over a real row: back to V7, then forward again through EnsureCreated.
+        using var tmp = new TempDatabase();
+        tmp.Db.EnsureCreated();
+        using (var v7 = tmp.Db.Open())
+        {
+            v7.Cmd("ALTER TABLE Connection DROP COLUMN RedirectWebAuthn").ExecuteNonQuery();
+            v7.Cmd("DELETE FROM SchemaVersion WHERE Version >= 8").ExecuteNonQuery();
+            v7.Cmd("INSERT INTO Connection(Name, Host, CreatedUtc) VALUES ('WIN02', 'contoso-win02', '2026-01-01T00:00:00.0000000Z')").ExecuteNonQuery();
+        }
+
+        var backup = tmp.Db.EnsureCreated();
+
+        Assert.NotNull(backup);
+        Assert.EndsWith(".v7.bak", backup, StringComparison.Ordinal);
+        Assert.True(File.Exists(backup));
+        using var after = tmp.Db.Open();
+        Assert.Equal(SchemaMigrator.CurrentVersion, SchemaMigrator.GetVersion(after));
+        Assert.Equal(1L, after.Cmd("SELECT RedirectWebAuthn FROM Connection").ExecuteScalar());
+    }
+
+    [Fact]
     public void Deleting_a_connection_cascades_to_its_workspace_items()
     {
         using var tmp = new TempDatabase();

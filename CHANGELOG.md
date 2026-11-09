@@ -2,6 +2,24 @@
 
 All notable changes to Lucarne (formerly RemoteDeck) are recorded here. Dates are ISO 8601.
 
+## Unreleased
+
+### WebAuthn redirection
+
+- **What it does**: a passkey request in the remote session is answered on this PC, with
+  Windows Hello, a local security key or a QR code shown locally, instead of on the remote
+  machine, where a phone at another site cannot reach it over Bluetooth.
+- **Where**: *WebAuthn (Windows Hello or security keys)* in the editor's *Redirections*
+  section. On by default, as in Remote Desktop Connection, including for existing connections.
+- **`.rdp` import**: `redirectwebauthn:i:0|1` is read and no longer counted as ignored.
+- **Configuration files**: the option travels with the connection. A file exported by an
+  earlier version still imports, and its connections get the default.
+- **Database**: schema V8, with the usual copy taken before the upgrade. An earlier version of
+  Lucarne cannot open the upgraded file.
+- **How**: the Remote Desktop control has no setting for this, so Lucarne passes
+  `System32\WebAuthn.dll` to `PluginDlls`, as `mstsc` does. Microsoft does not document that
+  use. A refusal or a missing DLL is logged and the session connects without it.
+
 ## 1.1.0 — 2026-11-05
 
 The session area has a face of its own while there is no desktop to show.

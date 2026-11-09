@@ -382,6 +382,7 @@ public sealed partial class ImportViewModel : ObservableObject
         RedirectDrives = candidate.RedirectDrives,
         RedirectPrinters = candidate.RedirectPrinters,
         RedirectAudio = candidate.RedirectAudio,
+        RedirectWebAuthn = candidate.RedirectWebAuthn,
         UseWebAccount = candidate.UseWebAccount,
         // The one name import does carry: under a web account it is an account hint, not a credential.
         WebAccountUpn = candidate.WebAccountUpn,

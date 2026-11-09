@@ -31,6 +31,7 @@ public sealed class ConnectionRepositoryTests : IDisposable
             Name = "Prod DC", Host = "dc01", Port = 3390, GroupName = "Prod", IsFavorite = true,
             DisplayMode = DisplayMode.Fixed, FixedWidth = 1920, FixedHeight = 1080,
             RedirectClipboard = false, RedirectDrives = true, RedirectPrinters = true, RedirectAudio = true,
+            RedirectWebAuthn = false,
             AdminSession = true, UseWebAccount = true, AuthenticationLevel = 1,
             Notes = "notes", VpnProfile = "VPN Contoso", AutoRaiseVpn = true, WebAccountUpn = "user@contoso.com",
         };
@@ -50,6 +51,7 @@ public sealed class ConnectionRepositoryTests : IDisposable
         Assert.True(b.RedirectDrives);
         Assert.True(b.RedirectPrinters);
         Assert.True(b.RedirectAudio);
+        Assert.False(b.RedirectWebAuthn);
         Assert.True(b.AdminSession);
         Assert.True(b.UseWebAccount);
         Assert.Equal(1, b.AuthenticationLevel);
@@ -110,6 +112,7 @@ public sealed class ConnectionRepositoryTests : IDisposable
         Assert.False(b.RedirectDrives);
         Assert.False(b.RedirectPrinters);
         Assert.False(b.RedirectAudio);
+        Assert.True(b.RedirectWebAuthn);
         Assert.False(b.AdminSession);
         Assert.False(b.UseWebAccount);
         Assert.False(b.IsFavorite);
@@ -292,6 +295,18 @@ public sealed class ConnectionRepositoryTests : IDisposable
         on.AutoRaiseVpn = true;
         _repo.Insert(on);
         Assert.True(_repo.Get(on.Id)!.AutoRaiseVpn);
+    }
+
+    [Fact]
+    public void RedirectWebAuthn_is_on_unless_cleared_and_roundtrips_through_insert_and_update()
+    {
+        var x = Make("Jump host");
+        _repo.Insert(x);
+        Assert.True(_repo.Get(x.Id)!.RedirectWebAuthn);
+
+        x.RedirectWebAuthn = false;
+        _repo.Update(x);
+        Assert.False(_repo.Get(x.Id)!.RedirectWebAuthn);
     }
 
     [Fact]

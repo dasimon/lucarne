@@ -581,6 +581,12 @@
   <data name="Editor_RedirectAudio" xml:space="preserve">
     <value>Audio</value>
   </data>
+  <data name="Editor_RedirectWebAuthn" xml:space="preserve">
+    <value>WebAuthn (Windows Hello ou clés de sécurité)</value>
+  </data>
+  <data name="Editor_RedirectWebAuthnToolTip" xml:space="preserve">
+    <value>Windows Hello, les clés de sécurité et les clés d'accès sont traités sur ce PC.</value>
+  </data>
   <data name="Editor_SectionAdvanced" xml:space="preserve">
     <value>Avancé</value>
   </data>

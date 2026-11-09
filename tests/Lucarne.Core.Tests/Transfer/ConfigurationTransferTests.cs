@@ -75,6 +75,39 @@ public sealed class ConfigurationTransferTests
     }
 
     [Fact]
+    public void WebAuthn_redirection_turned_off_survives_export_and_import()
+    {
+        using var tmp = new TempDatabase();
+        tmp.Db.EnsureCreated();
+        var connections = new ConnectionRepository(tmp.Db);
+        var workspaces = new WorkspaceRepository(tmp.Db);
+        var off = Sql(1, null);
+        off.RedirectWebAuthn = false;
+
+        var document = RoundTrip(ConfigurationTransfer.Build([off], [], [], Now));
+        ConfigurationTransfer.Apply(ConfigurationTransfer.Plan(document, [], [], []), connections, workspaces, new ImportResult());
+
+        Assert.False(Assert.Single(document.Connections).RedirectWebAuthn);
+        Assert.False(Assert.Single(connections.GetAll()).RedirectWebAuthn);
+    }
+
+    [Fact]
+    public void A_file_exported_before_WebAuthn_redirection_existed_still_imports_with_it_on()
+    {
+        var off = Sql(1, null);
+        off.RedirectWebAuthn = false;
+        var json = System.Text.RegularExpressions.Regex.Replace(
+            ConfigurationTransfer.Serialize(ConfigurationTransfer.Build([off], [], [], Now)),
+            @"""redirectWebAuthn""\s*:\s*(true|false)\s*,?\s*", "",
+            System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+        Assert.DoesNotContain("webauthn", json, StringComparison.OrdinalIgnoreCase);
+
+        var document = ConfigurationTransfer.Read(json);
+
+        Assert.True(Assert.Single(document.Connections).RedirectWebAuthn);
+    }
+
+    [Fact]
     public void Import_links_a_credential_with_the_same_label_and_names_the_missing_ones()
     {
         var document = RoundTrip(ConfigurationTransfer.Build(
