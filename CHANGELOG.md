@@ -2,6 +2,20 @@
 
 All notable changes to Lucarne (formerly RemoteDeck) are recorded here. Dates are ISO 8601.
 
+## 1.2.2 — 2026-11-11
+
+An update no longer stays stuck on *Restarting Lucarne…*.
+
+- **What was wrong**: the Remote Desktop control can deadlock inside its own teardown, on the
+  thread that draws the window. When it did while Lucarne was closing, the window froze for
+  good and had to be ended by hand; after an update, the new version never started. Seen on
+  2026-11-10 with three sessions live, about one shutdown in five.
+- **What happens now**: if the window stops answering for ten seconds while Lucarne is closing,
+  the process ends on its own, and a pending update starts the new version first. The log says
+  `UI thread silent for 10s during shutdown`.
+- **Not fixed**: the deadlock itself, inside the control. Destroying it a second after its
+  disconnection did not prevent it, so a shutdown can still freeze for about ten seconds.
+
 ## 1.2.1 — 2026-11-09
 
 An available update can be seen with the connection pane folded.
