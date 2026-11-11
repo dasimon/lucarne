@@ -1252,7 +1252,7 @@ Espaces déjà présents, laissés tels quels : {4}</value>
     <value>Recherche automatique des mises à jour activée</value>
   </data>
   <data name="Shell_UpdatesOnMessage" xml:space="preserve">
-    <value>Lucarne recherche une nouvelle version sur GitHub au démarrage, puis une fois par jour.</value>
+    <value>Lucarne recherche une nouvelle version sur GitHub au démarrage, puis toutes les heures.</value>
   </data>
   <data name="Shell_UpdatesOffTitle" xml:space="preserve">
     <value>Recherche automatique des mises à jour désactivée</value>

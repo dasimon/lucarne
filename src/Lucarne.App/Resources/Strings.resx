@@ -1252,7 +1252,7 @@ Workspaces already here, left as they are: {4}</value>
     <value>Automatic update checks are on</value>
   </data>
   <data name="Shell_UpdatesOnMessage" xml:space="preserve">
-    <value>Lucarne looks for a new version on GitHub at startup, then once a day.</value>
+    <value>Lucarne looks for a new version on GitHub at startup, then every hour.</value>
   </data>
   <data name="Shell_UpdatesOffTitle" xml:space="preserve">
     <value>Automatic update checks are off</value>

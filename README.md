@@ -505,7 +505,7 @@ release workflow from the tagged commit:
 Lucarne can look for a newer release itself, so that an unsigned executable does not
 have to be fetched and checked by hand each time. It talks to GitHub, and only GitHub.
 
-- **What it asks.** Ten seconds after the window opens, then once a day, it reads the
+- **What it asks.** Ten seconds after the window opens, then every hour, it reads the
   latest release of `dasimon/lucarne` from the GitHub API. Only a tag of the form
   `vMAJOR.MINOR.PATCH` that is higher than the running version is offered, as a banner at
   the bottom of the connection pane. With the pane folded, the session bar shows *Update
