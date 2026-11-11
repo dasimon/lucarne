@@ -23,4 +23,22 @@ public sealed class ClosePlanTests
     [Fact]
     public void Nothing_left_to_close_asks_for_nothing()
         => Assert.Equal(TimeSpan.Zero, ClosePlan.For(0, TimeSpan.Zero));
+
+    [Fact]
+    public void A_ui_thread_that_answered_just_now_is_not_hung()
+        => Assert.False(ClosePlan.IsHung(TimeSpan.Zero));
+
+    [Fact]
+    public void A_ui_thread_silent_just_under_ten_seconds_is_not_hung()
+        => Assert.False(ClosePlan.IsHung(TimeSpan.FromSeconds(9.9)));
+
+    [Fact]
+    public void A_ui_thread_silent_for_ten_seconds_is_hung()
+        => Assert.True(ClosePlan.IsHung(TimeSpan.FromSeconds(10)));
+
+    [Fact]
+    public void A_hung_ui_thread_outlasts_no_close_budget()
+        // A healthy shutdown answers between two sessions: no single wait it makes may reach the
+        // silence that ends the process.
+        => Assert.True(TimeSpan.FromSeconds(ClosePlan.UnresponsiveSeconds) > ClosePlan.For(1, TimeSpan.Zero));
 }

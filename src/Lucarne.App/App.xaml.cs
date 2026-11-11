@@ -148,9 +148,16 @@ public partial class App : System.Windows.Application
         ProbeLog.Write("update", $"restart scheduled on exit: {exePath}");
     }
 
-    private void OnExitRestart(object sender, ExitEventArgs e)
+    private void OnExitRestart(object sender, ExitEventArgs e) => StartPendingRestart();
+
+    /// <summary>
+    /// Starts the executable <see cref="RestartAfterExit"/> named, at most once: from
+    /// <see cref="System.Windows.Application.Exit"/>, or from the shutdown watchdog when the UI thread
+    /// is stuck and that event will never come. Callable from any thread.
+    /// </summary>
+    public void StartPendingRestart()
     {
-        if (_restartPath is not { } path)
+        if (Interlocked.Exchange(ref _restartPath, null) is not { } path)
         {
             return;
         }

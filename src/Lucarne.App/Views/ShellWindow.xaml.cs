@@ -152,6 +152,8 @@ public partial class ShellWindow : Wpf.Ui.Controls.FluentWindow
 
     private bool _settingsSaved;
     private bool _closeInProgress;
+    /// <summary>Armed with the graceful close; held here so its timer lives as long as the process.</summary>
+    private ShutdownWatchdog? _shutdownWatchdog;
     private bool _reentrantCloseLogged;
     private bool _closeConfirmed;
 
@@ -3303,6 +3305,9 @@ public partial class ShellWindow : Wpf.Ui.Controls.FluentWindow
         e.Cancel = true;
         // Set synchronously, before the first await: this is what the guard above tests.
         _closeInProgress = true;
+        // A control can deadlock the UI thread in its teardown, where no budget reaches: past that
+        // point only another thread can end the process — and restart it, after an update.
+        _shutdownWatchdog ??= new ShutdownWatchdog(Dispatcher, App.Current.StartPendingRestart);
         // The cross, the middle-click and Ctrl+W all stop here: a close started now would race the
         // close-all pass below over the same tab.
         _sessions.CanCloseTabs = false;
