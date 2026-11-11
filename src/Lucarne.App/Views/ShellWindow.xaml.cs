@@ -159,7 +159,7 @@ public partial class ShellWindow : Wpf.Ui.Controls.FluentWindow
 
     /// <summary>The first automatic update check after the window is shown, then the gap between two.</summary>
     private static readonly TimeSpan FirstUpdateCheckDelay = TimeSpan.FromSeconds(10);
-    private static readonly TimeSpan UpdateCheckInterval = TimeSpan.FromHours(24);
+    private static readonly TimeSpan UpdateCheckInterval = TimeSpan.FromHours(1);
 
     private readonly UpdateCoordinator _updates;
 
@@ -1098,7 +1098,7 @@ public partial class ShellWindow : Wpf.Ui.Controls.FluentWindow
                 // Saved now and with rememberDetached: false, for the reasons given for the resume.
                 SaveSettings(rememberDetached: false);
 
-                // Turned on: the first check comes as at startup, not up to a day later. Setting the
+                // Turned on: the first check comes as at startup, not up to an hour later. Setting the
                 // interval of a running timer restarts it.
                 if (_settings.CheckForUpdates && _updateTimer is not null)
                 {
@@ -2681,6 +2681,8 @@ public partial class ShellWindow : Wpf.Ui.Controls.FluentWindow
     }
 
     private void OnManageCredentials(object sender, RoutedEventArgs e) => ManageCredentials();
+
+    private void OnCommandPaletteClick(object sender, RoutedEventArgs e) => OpenCommandPalette();
 
     /// <summary>Opens the credential manager, from the toolbar button or from the palette.</summary>
     /// <summary>

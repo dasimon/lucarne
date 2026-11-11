@@ -310,6 +310,8 @@ success criteria of the design.
 - [ ] `Ctrl+K` opens the palette **while the remote desktop has focus** (low-level hook
       path) as well as from the connection pane. The palette appears centred on the main
       window and does **not** float above other applications.
+- [ ] The list button in the session bar, tooltip *Commands (Ctrl+K)*, opens the same palette,
+      with the pane folded or not, with or without a session.
 - [ ] With no query, the list shows, in that order: the six commands (*New connection*,
       *Import connections…*, *Manage credentials*, *Toggle the pane*, *Close session*,
       *Reconnect*), then one row per **open session tab**, then the saved connections
@@ -1186,6 +1188,9 @@ Never test against a real release of `dasimon/lucarne` from the machine in daily
       updates automatically* turned off.
 - [ ] **Off switch.** Turn *Check for updates automatically* off in the palette, restart: no
       request in the log after 10 seconds or at any later time; on again, a check follows.
+- [ ] **Hourly.** Leave Lucarne open: `[update] latest release` comes back in the log about
+      every hour after the first check. (Once a day until 1.2.3: a release published just after
+      startup stayed unseen for a whole working day.)
 - [ ] **Managed workstation (Defender attack surface reduction).** From a folder such as
       `C:\Programmes <company>`, with an ASR policy pushed by Intune: the update is not blocked
       (no event 1121 for `Lucarne.exe` in *Microsoft-Windows-Windows Defender/Operational*), and the new executable starts.
