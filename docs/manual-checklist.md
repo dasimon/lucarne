@@ -288,7 +288,11 @@ probe has not been run. The lot is not closed until this section is.
       does not close two tabs or throw.
 - [ ] Should the window freeze while closing: about ten seconds later the process ends on its
       own, the log saying `UI thread silent for 10s during shutdown`; after an update, the new
-      version starts. (The Remote Desktop control can deadlock inside its own `WM_DESTROY`:
+      version starts.
+- [ ] **Slow restart after an update.** In the log, `restarting` then `restarted … in N ms`; when
+      N passes ten seconds, the watchdog line comes in between and the new version still starts,
+      on its own. (2026-11-11, 1.2.2 to 1.2.3: the watchdog ended the process during a launch of
+      about fifteen seconds, and nothing started.) (The Remote Desktop control can deadlock inside its own `WM_DESTROY`:
       on 2026-11-10, an update's restart, then one shutdown out of five with three sessions
       live. Destroying it a second after its disconnection did not prevent it — one freeze in
       fifteen shutdowns, ended by this watchdog at 23:54:15 UTC.)
