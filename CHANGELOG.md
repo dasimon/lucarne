@@ -2,6 +2,17 @@
 
 All notable changes to Lucarne (formerly RemoteDeck) are recorded here. Dates are ISO 8601.
 
+## 1.2.4 — 2026-11-11
+
+An update restarts Lucarne again when starting the new version is slow.
+
+- **What was wrong**: starting the freshly replaced executable can take about fifteen seconds,
+  most likely while Defender looks at the new file. The 1.2.2 shutdown watchdog took that for a
+  frozen window and ended the process in the middle of it, so the new version did not start:
+  seen on 2026-11-11, updating from 1.2.2 to 1.2.3.
+- **What happens now**: the watchdog waits for a restart in flight to finish before ending the
+  process. The log says `restarting`, then `restarted … in N ms`.
+
 ## 1.2.3 — 2026-11-11
 
 A new version is seen within the hour, and the command palette has a button.
