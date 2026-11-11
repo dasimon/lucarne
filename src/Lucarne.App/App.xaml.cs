@@ -35,7 +35,7 @@ public partial class App : System.Windows.Application
     public bool DatabaseReady { get; private set; }
 
     /// <summary>The executable to start once the application has exited; see <see cref="RestartAfterExit"/>.</summary>
-    private string? _restartPath;
+    private readonly PendingRestart _restart = new();
 
     /// <summary>
     /// How long a start waits for the RemoteDeck folder to be let go of before using it as it is.
@@ -138,13 +138,11 @@ public partial class App : System.Windows.Application
     /// </summary>
     public void RestartAfterExit(string exePath)
     {
-        ArgumentException.ThrowIfNullOrEmpty(exePath);
-        if (_restartPath is null)
+        if (_restart.Schedule(exePath))
         {
             Exit += OnExitRestart;
         }
 
-        _restartPath = exePath;
         ProbeLog.Write("update", $"restart scheduled on exit: {exePath}");
     }
 
@@ -153,26 +151,25 @@ public partial class App : System.Windows.Application
     /// <summary>
     /// Starts the executable <see cref="RestartAfterExit"/> named, at most once: from
     /// <see cref="System.Windows.Application.Exit"/>, or from the shutdown watchdog when the UI thread
-    /// is stuck and that event will never come. Callable from any thread.
+    /// is stuck and that event will never come. Callable from any thread; the caller that comes second
+    /// returns only once the launch is over, so the watchdog never ends the process in the middle of it.
     /// </summary>
-    public void StartPendingRestart()
+    public void StartPendingRestart() => _restart.Start(path =>
     {
-        if (Interlocked.Exchange(ref _restartPath, null) is not { } path)
-        {
-            return;
-        }
-
+        // Logged before and after: starting a freshly replaced executable can take seconds.
+        ProbeLog.Write("update", $"restarting {path}");
+        var clock = Stopwatch.StartNew();
         try
         {
             using var _ = Process.Start(new ProcessStartInfo(path) { UseShellExecute = false });
-            ProbeLog.Write("update", $"restarted {path}");
+            ProbeLog.Write("update", $"restarted {path} in {clock.ElapsedMilliseconds} ms");
         }
         catch (Exception ex) when (ex is System.ComponentModel.Win32Exception or InvalidOperationException)
         {
             // The new executable is in place; the user starts it by hand.
             ProbeLog.Write("update", $"restart of {path} failed: {ex.Message}");
         }
-    }
+    });
 
     /// <summary>
     /// The <c>--apply-update "&lt;source&gt;" &lt;sha256&gt;</c> mode, run elevated by the installed
