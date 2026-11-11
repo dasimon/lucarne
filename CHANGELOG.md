@@ -2,6 +2,16 @@
 
 All notable changes to Lucarne (formerly RemoteDeck) are recorded here. Dates are ISO 8601.
 
+## 1.2.3 — 2026-11-11
+
+A new version is seen within the hour, and the command palette has a button.
+
+- **Update checks**: every hour while Lucarne is open, instead of once a day. A release
+  published just after Lucarne started stayed unseen for a whole working day. One request an
+  hour stays far below what GitHub allows without an account.
+- **Command palette button**: the list icon in the session bar, next to the diagnostics and
+  credentials buttons, opens the palette. `Ctrl+K` was the only way to it, and easy to forget.
+
 ## 1.2.2 — 2026-11-11
 
 An update no longer stays stuck on *Restarting Lucarne…*.
