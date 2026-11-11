@@ -2682,6 +2682,8 @@ public partial class ShellWindow : Wpf.Ui.Controls.FluentWindow
 
     private void OnManageCredentials(object sender, RoutedEventArgs e) => ManageCredentials();
 
+    private void OnCommandPaletteClick(object sender, RoutedEventArgs e) => OpenCommandPalette();
+
     /// <summary>Opens the credential manager, from the toolbar button or from the palette.</summary>
     /// <summary>
     /// Writes connections, credentials without their passwords, and workspaces to a file the user

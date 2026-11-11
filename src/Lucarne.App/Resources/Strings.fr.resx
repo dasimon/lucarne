@@ -227,6 +227,9 @@
   <data name="Shell_CredentialsToolTip" xml:space="preserve">
     <value>Gérer les identifiants</value>
   </data>
+  <data name="Shell_PaletteToolTip" xml:space="preserve">
+    <value>Commandes (Ctrl+K)</value>
+  </data>
   <data name="Shell_Disconnect" xml:space="preserve">
     <value>Déconnecter</value>
   </data>

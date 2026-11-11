@@ -74,7 +74,8 @@ see below.
 
 ### Command palette
 
-`Ctrl+K` opens a palette over everything, including a live remote desktop. Type a
+`Ctrl+K` opens a palette over everything, including a live remote desktop; so does the list
+button in the session bar, next to the diagnostics and credentials ones. Type a
 couple of letters and press `Enter`. One list holds three kinds of entry:
 
 - **Commands** — *New connection*, *Import connections…*, *Manage credentials*,

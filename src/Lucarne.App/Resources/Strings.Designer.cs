@@ -575,6 +575,15 @@ namespace Lucarne.App.Resources {
                 return ResourceManager.GetString("Shell_CredentialsToolTip", resourceCulture);
             }
         }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Commands (Ctrl+K).
+        /// </summary>
+        public static string Shell_PaletteToolTip {
+            get {
+                return ResourceManager.GetString("Shell_PaletteToolTip", resourceCulture);
+            }
+        }
 
         /// <summary>
         ///   Looks up a localized string similar to Disconnect.

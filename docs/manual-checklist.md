@@ -310,6 +310,8 @@ success criteria of the design.
 - [ ] `Ctrl+K` opens the palette **while the remote desktop has focus** (low-level hook
       path) as well as from the connection pane. The palette appears centred on the main
       window and does **not** float above other applications.
+- [ ] The list button in the session bar, tooltip *Commands (Ctrl+K)*, opens the same palette,
+      with the pane folded or not, with or without a session.
 - [ ] With no query, the list shows, in that order: the six commands (*New connection*,
       *Import connections…*, *Manage credentials*, *Toggle the pane*, *Close session*,
       *Reconnect*), then one row per **open session tab**, then the saved connections
